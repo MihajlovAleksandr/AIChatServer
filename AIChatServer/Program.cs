@@ -1,51 +1,78 @@
 ﻿using System;
 using System.Net;
-using System.Net.WebSockets;
+using System.Net.Sockets;
 using System.Text;
 using System.Threading;
-using System.Threading.Tasks;
 
-class Program
+class Server
 {
-    static async Task Main()
+    static void Main(string[] args)
     {
-        HttpListener listener = new HttpListener();
-        listener.Prefixes.Add("http://192.168.100.14:5000/");
-        listener.Start();
-        Console.WriteLine("Сервер запущен. Ожидание подключений...");
-
-        while (true)
+        TcpListener server = null;
+        try
         {
-            HttpListenerContext context = await listener.GetContextAsync();
+            // Устанавливаем порт и IP-адрес для сервера
+            int port = 8888;
+            IPAddress localAddr = IPAddress.Parse("192.168.100.14");
 
-            if (context.Request.IsWebSocketRequest)
-            {
-                HttpListenerWebSocketContext webSocketContext = await context.AcceptWebSocketAsync(null);
-                WebSocket webSocket = webSocketContext.WebSocket;
+            // Создаем TcpListener для прослушивания входящих соединений
+            server = new TcpListener(localAddr, port);
 
-                await ProcessWebSocketRequest(webSocket);
-            }
-            else
+            // Запускаем сервер
+            server.Start();
+
+            Console.WriteLine("Ожидание подключений...");
+
+            while (true)
             {
-                context.Response.StatusCode = 400;
-                context.Response.Close();
+                // Принимаем входящее соединение
+                TcpClient client = server.AcceptTcpClient();
+                Console.WriteLine("Подключен клиент.");
+
+                // Создаем поток для обработки клиента
+                Thread clientThread = new Thread(new ParameterizedThreadStart(HandleClient));
+                clientThread.Start(client);
             }
+        }
+        catch (Exception e)
+        {
+            Console.WriteLine(e.Message);
+        }
+        finally
+        {
+            if (server != null)
+                server.Stop();
         }
     }
 
-    static async Task ProcessWebSocketRequest(WebSocket webSocket)
+    private static void HandleClient(object obj)
     {
-        byte[] buffer = new byte[1024 * 4];
-        WebSocketReceiveResult result = await webSocket.ReceiveAsync(new ArraySegment<byte>(buffer), CancellationToken.None);
+        TcpClient client = (TcpClient)obj;
+        NetworkStream stream = client.GetStream();
 
-        while (!result.CloseStatus.HasValue)
+        byte[] buffer = new byte[1024];
+        int bytesRead;
+
+        try
         {
-            string message = Encoding.UTF8.GetString(buffer, 0, result.Count);
-            Console.WriteLine("Получено сообщение от клиента: " + message);
+            while ((bytesRead = stream.Read(buffer, 0, buffer.Length)) != 0)
+            {
+                // Преобразуем полученные данные в строку
+                string data = Encoding.UTF8.GetString(buffer, 0, bytesRead);
+                Console.WriteLine("Получено: " + data);
 
-            result = await webSocket.ReceiveAsync(new ArraySegment<byte>(buffer), CancellationToken.None);
+                // Отправляем ответ клиенту
+                byte[] response = Encoding.UTF8.GetBytes("Сообщение получено: " + data);
+                stream.Write(response, 0, response.Length);
+            }
         }
-
-        await webSocket.CloseAsync(result.CloseStatus.Value, result.CloseStatusDescription, CancellationToken.None);
+        catch (Exception e)
+        {
+            Console.WriteLine(e.Message);
+        }
+        finally
+        {
+            client.Close();
+        }
     }
 }
