@@ -1,51 +1,110 @@
 ﻿using System;
 using System.Net;
 using System.Net.WebSockets;
-using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
+using System.Text;
+using System.Security.Cryptography.X509Certificates;
+using System.IO;
 
-class Program
+namespace AIChatServer
 {
-    static async Task Main()
+    class Server
     {
-        HttpListener listener = new HttpListener();
-        listener.Prefixes.Add("http://192.168.100.14:5000/");
-        listener.Start();
-        Console.WriteLine("Сервер запущен. Ожидание подключений...");
-
-        while (true)
+        static async Task Main(string[] args)
         {
-            HttpListenerContext context = await listener.GetContextAsync();
+            // Заменяем HttpListener на HttpListener с поддержкой HTTPS
+            HttpListener httpListener = new HttpListener();
+            httpListener.Prefixes.Add("https://192.168.100.11:8888/"); // Используем HTTPS
 
-            if (context.Request.IsWebSocketRequest)
+            // Добавляем обработку исключений при старте
+            try
             {
-                HttpListenerWebSocketContext webSocketContext = await context.AcceptWebSocketAsync(null);
-                WebSocket webSocket = webSocketContext.WebSocket;
-
-                await ProcessWebSocketRequest(webSocket);
+                httpListener.Start();
+                Console.WriteLine("Сервер запущен. Ожидание подключений...");
             }
-            else
+            catch (HttpListenerException e)
             {
-                context.Response.StatusCode = 400;
-                context.Response.Close();
+                Console.WriteLine("Ошибка при запуске сервера: " + e.Message);
+                return;
+            }
+
+            while (true)
+            {
+                HttpListenerContext httpContext = null;
+                try
+                {
+                    httpContext = await httpListener.GetContextAsync();
+
+                    if (httpContext.Request.IsWebSocketRequest)
+                    {
+                        HandleClient(httpContext);
+                    }
+                    else
+                    {
+                        httpContext.Response.StatusCode = 400;
+                        httpContext.Response.Close();
+                        Console.WriteLine("Получен некорректный запрос.");
+                    }
+                }
+                catch (Exception e)
+                {
+                    Console.WriteLine("Ошибка при получении контекста: " + e.Message);
+                }
             }
         }
-    }
 
-    static async Task ProcessWebSocketRequest(WebSocket webSocket)
-    {
-        byte[] buffer = new byte[1024 * 4];
-        WebSocketReceiveResult result = await webSocket.ReceiveAsync(new ArraySegment<byte>(buffer), CancellationToken.None);
-
-        while (!result.CloseStatus.HasValue)
+        private static async void HandleClient(HttpListenerContext httpContext)
         {
-            string message = Encoding.UTF8.GetString(buffer, 0, result.Count);
-            Console.WriteLine("Получено сообщение от клиента: " + message);
+            WebSocketContext webSocketContext = null;
 
-            result = await webSocket.ReceiveAsync(new ArraySegment<byte>(buffer), CancellationToken.None);
+            try
+            {
+                webSocketContext = await httpContext.AcceptWebSocketAsync(null);
+                Console.WriteLine("Клиент подключился через WebSocket.");
+            }
+            catch (Exception e)
+            {
+                httpContext.Response.StatusCode = 500;
+                httpContext.Response.Close();
+                Console.WriteLine("Ошибка при установлении WebSocket-соединения: " + e.Message);
+                return;
+            }
+
+            WebSocket webSocket = webSocketContext.WebSocket;
+            byte[] buffer = new byte[1024];
+
+            while (webSocket.State == WebSocketState.Open)
+            {
+                try
+                {
+                    WebSocketReceiveResult result = await webSocket.ReceiveAsync(new ArraySegment<byte>(buffer), CancellationToken.None);
+
+                    if (result.MessageType == WebSocketMessageType.Close)
+                    {
+                        await webSocket.CloseAsync(WebSocketCloseStatus.NormalClosure, "Закрытие соединения", CancellationToken.None);
+                        Console.WriteLine("Клиент отключился.");
+                    }
+                    else
+                    {
+                        string message = Encoding.UTF8.GetString(buffer, 0, result.Count);
+                        Console.WriteLine("Получено сообщение: " + message);
+
+                        string responseMessage = "Сообщение получено: " + message;
+                        byte[] responseBuffer = Encoding.UTF8.GetBytes(responseMessage);
+
+                        await webSocket.SendAsync(new ArraySegment<byte>(responseBuffer), WebSocketMessageType.Text, true, CancellationToken.None);
+                        Console.WriteLine("Ответ отправлен клиенту.");
+                    }
+                }
+                catch (Exception e)
+                {
+                    Console.WriteLine("Ошибка при обмене данными: " + e.Message);
+                    break;
+                }
+            }
+
+            webSocket.Dispose();
         }
-
-        await webSocket.CloseAsync(result.CloseStatus.Value, result.CloseStatusDescription, CancellationToken.None);
     }
 }
