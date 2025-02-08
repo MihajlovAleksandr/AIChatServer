@@ -1,7 +1,4 @@
-﻿using System;
-using System.Web;
-using MySql.Data.MySqlClient;
-using Org.BouncyCastle.Asn1.Ocsp;
+﻿using MySql.Data.MySqlClient;
 namespace AIChatServer
 {
     public static class DB

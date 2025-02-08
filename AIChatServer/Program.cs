@@ -1,13 +1,6 @@
-﻿using System;
-using System.Net;
-using System.Net.Sockets;
+﻿using System.Net;
 using System.Text;
 using System.Net.WebSockets;
-using System.Threading;
-using System.Threading.Tasks;
-using System.Text;
-using System.Security.Cryptography.X509Certificates;
-using System.IO;
 
 namespace AIChatServer
 {
