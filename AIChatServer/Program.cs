@@ -4,15 +4,19 @@ using System.Net.WebSockets;
 
 namespace AIChatServer
 {
+    using System;
+    using System.Net;
+    using System.Net.WebSockets;
+    using System.Text;
+    using System.Threading;
+    using System.Threading.Tasks;
+
     class Server
     {
         static async Task Main(string[] args)
         {
-            // Заменяем HttpListener на HttpListener с поддержкой HTTPS
             HttpListener httpListener = new HttpListener();
-            httpListener.Prefixes.Add("https://192.168.100.11:8888/"); // Используем HTTPS
-
-            // Добавляем обработку исключений при старте
+            httpListener.Prefixes.Add("https://192.168.100.11:8888/");
             try
             {
                 httpListener.Start();
@@ -33,7 +37,7 @@ namespace AIChatServer
 
                     if (httpContext.Request.IsWebSocketRequest)
                     {
-                        HandleClient(httpContext);
+                        _ = HandleClient(httpContext);
                     }
                     else
                     {
@@ -49,14 +53,13 @@ namespace AIChatServer
             }
         }
 
-        private static async void HandleClient(HttpListenerContext httpContext)
+        private static async Task HandleClient(HttpListenerContext httpContext)
         {
             WebSocketContext webSocketContext = null;
-
             try
             {
                 webSocketContext = await httpContext.AcceptWebSocketAsync(null);
-                Console.WriteLine("Клиент подключился через WebSocket.");
+                Console.WriteLine($"Клиент подключился через WebSocket. {webSocketContext.Headers["userId"]}");
             }
             catch (Exception e)
             {
@@ -65,8 +68,8 @@ namespace AIChatServer
                 Console.WriteLine("Ошибка при установлении WebSocket-соединения: " + e.Message);
                 return;
             }
-
             WebSocket webSocket = webSocketContext.WebSocket;
+
             byte[] buffer = new byte[1024];
 
             while (webSocket.State == WebSocketState.Open)
@@ -102,4 +105,5 @@ namespace AIChatServer
             webSocket.Dispose();
         }
     }
+
 }
