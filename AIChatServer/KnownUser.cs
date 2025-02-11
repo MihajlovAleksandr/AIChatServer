@@ -8,7 +8,6 @@ namespace AIChatServer
 {
     public class KnownUser : ServerUser
     {
-
         private User user;
         public event EventHandler<Command> CommandGot;
 
@@ -16,7 +15,7 @@ namespace AIChatServer
         {
             return user.id;
         }
-        public KnownUser()
+        public KnownUser(User user)
         {
             base.CommandGot += (command) =>
             {

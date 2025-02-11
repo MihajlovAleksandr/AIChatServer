@@ -15,7 +15,8 @@ namespace AIChatServer
     {
         public static void Main()
         {
-
+            User user = DB.GetUserById(2);
+            Console.WriteLine(user);
         }
     }
 

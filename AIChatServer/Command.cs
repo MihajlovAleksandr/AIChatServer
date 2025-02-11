@@ -3,19 +3,22 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
-using System.Text.Json.Serialization;
+using Newtonsoft.Json;
 using System.Threading.Tasks;
+using System.Net.WebSockets;
 
 namespace AIChatServer
 {
     public class Command
     {
-        [JsonInclude]
+        [JsonProperty]
         private string operation;
-        [JsonInclude]
+        [JsonProperty]
         private Dictionary<string, object> data;
         [JsonIgnore]
         public string Operation { get { return operation; } }
+        [JsonIgnore]
+        public WebSocket Sender { get; private set; }
         public Command(string operation)
         {
             this.operation = operation;
@@ -32,6 +35,10 @@ namespace AIChatServer
         {
             if (data.TryGetValue(name, out var val)) return (T)val;
             return default;
+        }
+        public void SetSender(WebSocket sender)
+        {
+            Sender = sender;
         }
     }
 }

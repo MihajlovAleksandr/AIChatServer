@@ -8,6 +8,20 @@ namespace AIChatServer
 {
     public class UnknownUser : ServerUser
     {
+        public event EventHandler<EventArgs> UserChanged;
+        public UnknownUser()
+        {
+            CommandGot += (command) =>
+            {
+                if (command.Operation == "LoginIn")
+                {
+                    
+                }
+                else if(command.Operation == "Registration")
+                {
 
+                }
+            };
+        }
     }
 }

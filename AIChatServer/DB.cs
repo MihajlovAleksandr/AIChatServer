@@ -1,31 +1,32 @@
-﻿using MySql.Data.MySqlClient;
+﻿using System.Configuration;
+using MySql.Data.MySqlClient;
 namespace AIChatServer
 {
 
-    public static class DatabaseHelper
+    public static class DB
     {
-        public static MySqlConnection GetConnection(string connectionString)
+        private static string connectionString = ConfigurationManager.ConnectionStrings["aichat"].ConnectionString;
+        public static MySqlConnection GetConnection()
         {
             var connection = new MySqlConnection(connectionString);
             connection.Open();
             return connection;
         }
 
-        public static List<User> GetAllUsers(string connectionString)
+        public static User GetUserById(int id)
         {
-            var users = new List<User>();
             string getUsersQuery = @"
-                SELECT u.Id, u.Username, u.Name, u.Age, u.Gender,
-                       p.MinAge, p.MaxAge, p.Gender as PrefGender
-                FROM Users u
-                LEFT JOIN Preferences p ON u.Preference = p.Id";
-
-            using (var connection = GetConnection(connectionString))
+                SELECT u.Id, u.Username, u.Name, u.Age, u.Gender,  preference,
+                p.MinAge, p.MaxAge, p.Gender as PrefGender
+                FROM Users u  
+                LEFT JOIN Preferences p ON u.Preference = p.Id WHERE u.Id = @userId";
+            using (var connection = GetConnection())
             using (var getUsersCommand = new MySqlCommand(getUsersQuery, connection))
-            using (var reader = getUsersCommand.ExecuteReader())
             {
-                while (reader.Read())
+                getUsersCommand.Parameters.AddWithValue("@userId", id);
+                using (var reader = getUsersCommand.ExecuteReader())
                 {
+                    reader.Read();
                     var user = new User
                     {
                         id = reader.GetInt32("Id"),
@@ -33,18 +34,17 @@ namespace AIChatServer
                         name = reader.GetString("Name"),
                         age = reader.GetInt32("Age"),
                         gender = reader.GetChar("Gender"),
-                        Preference = new Preference
+                        preference = new Preference
                         {
+                            Id = reader.IsDBNull(reader.GetOrdinal("Preference")) ? 0 : reader.GetInt32("preference"),
                             MinAge = reader.IsDBNull(reader.GetOrdinal("MinAge")) ? 0 : reader.GetInt32("MinAge"),
                             MaxAge = reader.IsDBNull(reader.GetOrdinal("MaxAge")) ? 0 : reader.GetInt32("MaxAge"),
                             Gender = reader.IsDBNull(reader.GetOrdinal("PrefGender")) ? null : reader.GetChar("PrefGender")
                         }
                     };
-                    users.Add(user);
+                    return user;
                 }
             }
-            Thread.Sleep(5000);
-            return users;
         }
 
         public static List<Message> GetAllMessages(string connectionString)
@@ -52,7 +52,7 @@ namespace AIChatServer
             var messages = new List<Message>();
             string getMessagesQuery = "SELECT * FROM Message";
 
-            using (var connection = GetConnection(connectionString))
+            using (var connection = GetConnection())
             using (var getMessagesCommand = new MySqlCommand(getMessagesQuery, connection))
             using (var reader = getMessagesCommand.ExecuteReader())
             {
