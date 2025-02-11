@@ -10,7 +10,6 @@ namespace AIChatServer
 {
     public class UserManager
     {
-
         private Dictionary<int, ServerUser> users;
         private readonly object syncObj = new object();
         public UserManager()
@@ -103,9 +102,13 @@ namespace AIChatServer
             }
             WebSocket webSocket = webSocketContext.WebSocket;
 
-            
+            KnownUser serverUser = new KnownUser(new User());
+            serverUser.AddConnection(webSocket);
+            serverUser.CommandGot += (sender, command) =>
+            {
+                Console.WriteLine(command);
+            };
 
-            webSocket.Dispose();
         }
     }
 }

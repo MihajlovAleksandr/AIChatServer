@@ -37,7 +37,7 @@ namespace AIChatServer
 
                     if (result.MessageType == WebSocketMessageType.Close)
                     {
-                        await webSocket.CloseAsync(WebSocketCloseStatus.NormalClosure, "Закрытие соединения", CancellationToken.None);
+                        break;
                     }
                     else
                     {
@@ -52,6 +52,7 @@ namespace AIChatServer
                     break;
                 }
             }
+            await webSocket.CloseAsync(WebSocketCloseStatus.NormalClosure, "Закрытие соединения", CancellationToken.None);
             webSockets.Remove(webSocket);
             Console.WriteLine("Клиент отключился.");
         }

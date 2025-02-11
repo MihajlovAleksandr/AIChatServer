@@ -40,5 +40,9 @@ namespace AIChatServer
         {
             Sender = sender;
         }
+        public override string ToString()
+        {
+            return $"{operation}: \nData count: {data.Count}";
+        }
     }
 }

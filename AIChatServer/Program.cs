@@ -15,8 +15,11 @@ namespace AIChatServer
     {
         public static void Main()
         {
-            User user = DB.GetUserById(2);
-            Console.WriteLine(user);
+            TokenManager tokenManager = new TokenManager();
+            string token = tokenManager.GenerateToken(96453);
+            tokenManager.DecodeToken(token);
+            Console.WriteLine(tokenManager.ValidateTokenInternal(token, out int userId));
+            Console.WriteLine(userId);
         }
     }
 

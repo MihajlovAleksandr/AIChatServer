@@ -16,36 +16,46 @@ namespace AIChatServer
         public static User GetUserById(int id)
         {
             string getUsersQuery = @"
-                SELECT u.Id, u.Username, u.Name, u.Age, u.Gender,  preference,
+                SELECT u.Id, u.Username, u.Name, u.Age, u.Gender, preference,
                 p.MinAge, p.MaxAge, p.Gender as PrefGender
                 FROM Users u  
                 LEFT JOIN Preferences p ON u.Preference = p.Id WHERE u.Id = @userId";
             using (var connection = GetConnection())
-            using (var getUsersCommand = new MySqlCommand(getUsersQuery, connection))
             {
-                getUsersCommand.Parameters.AddWithValue("@userId", id);
-                using (var reader = getUsersCommand.ExecuteReader())
+                using (var getUsersCommand = new MySqlCommand(getUsersQuery, connection))
                 {
-                    reader.Read();
-                    var user = new User
+                    getUsersCommand.Parameters.AddWithValue("@userId", id);
+
+                    using (var reader = getUsersCommand.ExecuteReader())
                     {
-                        id = reader.GetInt32("Id"),
-                        username = reader.GetString("Username"),
-                        name = reader.GetString("Name"),
-                        age = reader.GetInt32("Age"),
-                        gender = reader.GetChar("Gender"),
-                        preference = new Preference
+                        if (reader.Read())
                         {
-                            Id = reader.IsDBNull(reader.GetOrdinal("Preference")) ? 0 : reader.GetInt32("preference"),
-                            MinAge = reader.IsDBNull(reader.GetOrdinal("MinAge")) ? 0 : reader.GetInt32("MinAge"),
-                            MaxAge = reader.IsDBNull(reader.GetOrdinal("MaxAge")) ? 0 : reader.GetInt32("MaxAge"),
-                            Gender = reader.IsDBNull(reader.GetOrdinal("PrefGender")) ? null : reader.GetChar("PrefGender")
+                            var user = new User
+                            {
+                                id = reader.GetInt32(reader.GetOrdinal("Id")),
+                                username = reader.GetString(reader.GetOrdinal("Username")),
+                                name = reader.GetString(reader.GetOrdinal("Name")),
+                                age = reader.GetInt32(reader.GetOrdinal("Age")),
+                                gender = reader.GetChar(reader.GetOrdinal("Gender")),
+                                preference = new Preference
+                                {
+                                    Id = reader.IsDBNull(reader.GetOrdinal("Preference")) ? 0 : reader.GetInt32(reader.GetOrdinal("preference")),
+                                    MinAge = reader.IsDBNull(reader.GetOrdinal("MinAge")) ? 0 : reader.GetInt32(reader.GetOrdinal("MinAge")),
+                                    MaxAge = reader.IsDBNull(reader.GetOrdinal("MaxAge")) ? 0 : reader.GetInt32(reader.GetOrdinal("MaxAge")),
+                                    Gender = reader.IsDBNull(reader.GetOrdinal("PrefGender")) ? null : reader.GetChar("PrefGender")
+                                }
+                            };
+                            return user;
                         }
-                    };
-                    return user;
+                        else
+                        {
+                            return null;
+                        }
+                    }
                 }
             }
         }
+
 
         public static List<Message> GetAllMessages(string connectionString)
         {
