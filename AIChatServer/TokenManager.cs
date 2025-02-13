@@ -46,17 +46,17 @@ namespace AIChatServer
             // Создание утверждений (claims)
             var claims = new[]
             {
-        new Claim(JwtRegisteredClaimNames.Sub, userId.ToString()), // Добавляем userId в claim "sub"
-        new Claim(JwtRegisteredClaimNames.Jti, Guid.NewGuid().ToString()),
-        new Claim(JwtRegisteredClaimNames.Iat, DateTimeOffset.UtcNow.ToUnixTimeSeconds().ToString(), ClaimValueTypes.Integer64),
-    };
+                new Claim(JwtRegisteredClaimNames.Sub, userId.ToString()), // Добавляем userId в claim "sub"
+                new Claim(JwtRegisteredClaimNames.Jti, Guid.NewGuid().ToString()),
+                new Claim(JwtRegisteredClaimNames.Iat, DateTimeOffset.UtcNow.ToUnixTimeSeconds().ToString(), ClaimValueTypes.Integer64),
+            };
 
             // Создание JWT токена
             var token = new JwtSecurityToken(
                 issuer: issuer,
                 audience: audience,
                 claims: claims,
-                expires: DateTime.UtcNow.AddDays(expireDays), // Время жизни токена
+                expires: DateTime.UtcNow.AddDays(expireDays),
                 signingCredentials: creds
             );
 
@@ -65,11 +65,12 @@ namespace AIChatServer
             return tokenHandler.WriteToken(token);
         }
 
-        public bool ValidateTokenInternal(string token, out int userId)
+        public bool ValidateToken(string token, out int userId, out DateTime expirationTime)
         {
             var tokenHandler = new JwtSecurityTokenHandler();
             var key = Encoding.UTF8.GetBytes(secretKey);
             userId = 0; // Инициализация userId значением по умолчанию
+            expirationTime = DateTime.MinValue; // Инициализация expirationTime значением по умолчанию
 
             try
             {
@@ -99,6 +100,13 @@ namespace AIChatServer
                     if (int.TryParse(subClaim, out userId))
                     {
                         Console.WriteLine($"User ID successfully extracted: {userId}"); // Логирование успешного извлечения userId
+
+                        // Извлечение времени истечения срока действия токена
+                        if (validatedToken is JwtSecurityToken jwtToken)
+                        {
+                            expirationTime = jwtToken.ValidTo;
+                        }
+
                         return true; // Токен валиден, userId успешно извлечен
                     }
                     else
@@ -134,6 +142,7 @@ namespace AIChatServer
                 return false;
             }
         }
+
         public void DecodeToken(string token)
         {
             var tokenHandler = new JwtSecurityTokenHandler();

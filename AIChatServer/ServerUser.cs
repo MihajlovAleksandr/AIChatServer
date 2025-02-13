@@ -11,6 +11,7 @@ namespace AIChatServer
     {
         private List<WebSocket> webSockets;
         protected event Action<Command> CommandGot;
+        public event Action Disconnected;
         public ServerUser()
         {
             webSockets = new List<WebSocket>();
@@ -54,7 +55,41 @@ namespace AIChatServer
             }
             await webSocket.CloseAsync(WebSocketCloseStatus.NormalClosure, "Закрытие соединения", CancellationToken.None);
             webSockets.Remove(webSocket);
+            if (webSockets.Count == 0)
+            {
+                Disconnected?.Invoke();
+            }
             Console.WriteLine("Клиент отключился.");
+        }
+        protected void DeleteSocketFromList(WebSocket webSocket)
+        {
+            webSockets.Remove(webSocket);
+        }
+        public void SendCommandForAllConnections(Command command)
+        {
+            byte[] bytes = CommandConverter.ParseCommand(command);
+            foreach (var webSocket in webSockets)
+            {
+                SendCommand(webSocket, bytes);
+            }
+        }
+
+        public static void SendCommand(WebSocket webSocket, Command command)
+        {
+            Console.WriteLine($"Sendinng command to client: {command}");
+            SendCommand(webSocket, CommandConverter.ParseCommand(command));
+        }
+
+        private async static void SendCommand(WebSocket webSocket, byte[] command)
+        {
+            try
+            {
+                await webSocket.SendAsync(new ArraySegment<byte>(command), WebSocketMessageType.Text, true, CancellationToken.None);
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Failed to send Command: {ex.Message}");
+            }
         }
     }
 }

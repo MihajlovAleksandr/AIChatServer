@@ -60,7 +60,7 @@ namespace AIChatServer
         private static User GetUserByUsername(string username)
         {
             string getUsersQuery = @"
-                SELECT u.Id, u.Username, u.Name, u.Age, u.Gender, preference,
+                SELECT u.Id, u.Username, u.Name, u.Age, u.Gender, preference, u.Password,
                 p.MinAge, p.MaxAge, p.Gender as PrefGender
                 FROM Users u  
                 LEFT JOIN Preferences p ON u.Preference = p.Id WHERE u.Username = @username";
@@ -80,6 +80,7 @@ namespace AIChatServer
                                 username = reader.GetString(reader.GetOrdinal("Username")),
                                 name = reader.GetString(reader.GetOrdinal("Name")),
                                 age = reader.GetInt32(reader.GetOrdinal("Age")),
+                                password = reader.GetString(reader.GetOrdinal("Password")),
                                 gender = reader.GetChar(reader.GetOrdinal("Gender")),
                                 preference = new Preference
                                 {
