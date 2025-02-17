@@ -42,7 +42,7 @@ namespace AIChatServer
                     }
                     else
                     {
-                        Command command = CommandConverter.GetCommand(buffer);
+                        Command command = JsonHelper.Deserialize<Command>(buffer);
                         command.SetSender(webSocket);
                         CommandGot.Invoke(command);
                     }
@@ -67,7 +67,8 @@ namespace AIChatServer
         }
         public void SendCommandForAllConnections(Command command)
         {
-            byte[] bytes = CommandConverter.ParseCommand(command);
+            Console.WriteLine($"Sendinng command to client: {JsonHelper.Serialize(command)}");
+            byte[] bytes = JsonHelper.SerializeToBytes(command);
             foreach (var webSocket in webSockets)
             {
                 SendCommand(webSocket, bytes);
@@ -76,8 +77,8 @@ namespace AIChatServer
 
         public static void SendCommand(WebSocket webSocket, Command command)
         {
-            Console.WriteLine($"Sendinng command to client: {command}");
-            SendCommand(webSocket, CommandConverter.ParseCommand(command));
+            Console.WriteLine($"Sendinng command to client: {JsonHelper.Serialize(command)}");
+            SendCommand(webSocket, JsonHelper.SerializeToBytes(command));
         }
 
         private async static void SendCommand(WebSocket webSocket, byte[] command)

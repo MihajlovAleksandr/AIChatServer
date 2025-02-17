@@ -133,6 +133,12 @@ namespace AIChatServer
                 knownUser.CommandGot += (sender, command) =>
                 {
                     Console.WriteLine($"{sender}: {command}");
+                    Message message = command.GetData<Message>("message");
+                    Console.WriteLine(message.time);
+                    command = new Command("SendMessage");
+                    command.AddData("message", message);
+                    knownUser.SendCommandForAllConnections(command);
+
                 };
             }
             else

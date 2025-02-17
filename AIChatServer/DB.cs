@@ -146,11 +146,11 @@ namespace AIChatServer
                 {
                     var message = new Message
                     {
-                        Id = reader.GetInt32("Id"),
-                        Text = reader.GetString("Text"),
-                        User = reader.GetInt32("User"),
-                        Chat = reader.GetInt32("Chat"),
-                        Time = reader.GetDateTime("Time")
+                        id = reader.GetInt32("Id"),
+                        text = reader.GetString("Text"),
+                        sender = reader.GetInt32("User"),
+                        chat = reader.GetInt32("Chat"),
+                        time = reader.GetDateTime("Time")
                     };
                     messages.Add(message);
                 }

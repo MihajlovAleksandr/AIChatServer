@@ -1,4 +1,5 @@
-﻿using System;
+﻿using Newtonsoft.Json;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
@@ -6,18 +7,33 @@ using System.Threading.Tasks;
 
 namespace AIChatServer
 {
-      public class Message : IComparable<Message>
-    {
-        public int Id { get; set; }
-        public int Chat { get; set; }
-        public int User {  get; set; }
-        public string Text { get; set; }
-        public DateTime Time { get; set; }
-        public Message() { User = -1; Time = DateTime.Now;}
+    using System;
+    using Newtonsoft.Json;
+    using System.Runtime.Serialization;
 
-        public int CompareTo(Message other)
+    public class Message
+    {
+        public int id;
+        public int chat;
+        public int sender;
+        public string text;
+
+        [JsonProperty(DefaultValueHandling = DefaultValueHandling.Ignore)]
+        public DateTime? time;
+
+        [OnDeserialized]
+        private void OnDeserialized(StreamingContext context)
         {
-            return -1*Time.CompareTo(other.Time);
+            if (time == null)
+            {
+                time = DateTime.Now.ToUniversalTime();
+            }
+        }
+
+        public override string ToString()
+        {
+            return $"Message {id}:\nFrom User{sender} To Chat{chat} In {JsonHelper.Serialize(time)}\n{text}";
         }
     }
+
 }
