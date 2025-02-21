@@ -1,23 +1,11 @@
-﻿using System.Net;
-using System.Text;
-using System.Net.WebSockets;
-
-namespace AIChatServer
+﻿namespace AIChatServer
 {
-    using System;
-    using System.Net;
-    using System.Net.WebSockets;
-    using System.Text;
-    using System.Threading;
-    using System.Threading.Tasks;
-
-    class Server
+    class Program
     {
-        public static void Main()
+        static void Main(string[] args)
         {
             UserManager userManager = new UserManager();
             Console.ReadKey();
         }
     }
-
 }

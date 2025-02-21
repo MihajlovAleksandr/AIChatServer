@@ -28,7 +28,7 @@ namespace AIChatServer
         private async void GetNewConnections()
         {
             HttpListener httpListener = new HttpListener();
-            httpListener.Prefixes.Add("https://192.168.100.11:8888/");
+            httpListener.Prefixes.Add("https://192.168.165.151:8888/");
             try
             {
                 httpListener.Start();
@@ -134,7 +134,7 @@ namespace AIChatServer
                 {
                     Console.WriteLine($"{sender}: {command}");
                     Message message = command.GetData<Message>("message");
-                    Console.WriteLine(message.time);
+                    Console.WriteLine($"Got message: {message}");
                     command = new Command("SendMessage");
                     command.AddData("message", message);
                     knownUser.SendCommandForAllConnections(command);
