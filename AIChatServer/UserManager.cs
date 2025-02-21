@@ -16,13 +16,11 @@ namespace AIChatServer
         private Dictionary<int, ServerUser> users;
         private readonly TokenManager tokenManager;
         private readonly object syncObj = new object();
+        private int id = 0;
         public UserManager()
         {
             users = new Dictionary<int, ServerUser>();
-            UnknownUser unknownUser = new UnknownUser();
             tokenManager = new TokenManager();
-            unknownUser.UserChanged += KnowUser;
-            users.Add(0, unknownUser);
             Task.Run(GetNewConnections);
         }
         private async void GetNewConnections()
@@ -78,32 +76,16 @@ namespace AIChatServer
             }
         }
 
-
-        public void ConnectUser(UnknownUser user)
-        {
-            lock (syncObj)
-            {
-                users[0].AddConnection(user);
-            }
-        }
-
-
-        public void DisconnectUser(int id)
-        {
-            lock (syncObj)
-            {
-                users.Remove(id);
-            }
-        }
-
-
         private void KnowUser(object? sender, User e)
         {
             WebSocket? webSocket = sender as WebSocket ?? throw new ArgumentException("webSocket was not webSocket, WHAT?!");
+            Command command = new Command("CreateToken");
+            command.AddData("token", tokenManager.GenerateToken(e.id));
+            ServerUser.SendCommand(webSocket, command);
+            KnownUser knownUser = new KnownUser(e, webSocket);
             lock (syncObj) {
-                Command command = new Command("CreateToken");
-                command.AddData("token", tokenManager.GenerateToken(e.id));
-                ServerUser.SendCommand(webSocket, command);
+                users.Remove(id);
+                users.Add(e.id, knownUser);
             }
         }
 
@@ -129,9 +111,9 @@ namespace AIChatServer
             KnownUser? knownUser = GetUserFromToken(token, webSocket);
             if (knownUser != null)
             {
-                Console.WriteLine("I know u...");
                 knownUser.CommandGot += (sender, command) =>
                 {
+                   Console.WriteLine(users.Count);
                     Console.WriteLine($"{sender}: {command}");
                     Message message = command.GetData<Message>("message");
                     Console.WriteLine(message.time);
@@ -140,17 +122,29 @@ namespace AIChatServer
                     knownUser.SendCommandForAllConnections(command);
 
                 };
+                users.Add(knownUser.GetUserId(), knownUser);
+                Console.WriteLine("I know u...");
             }
             else
             {
                 Console.WriteLine("I don't know u...");
-                ServerUser serverUser = users[0];
-                serverUser.AddConnection(webSocket);
+                int id = GetUnknownUserId();
+                users.Add(id, GetUnknownUser(webSocket, id));
             }
            
 
         }
-
+        private int GetUnknownUserId()
+        {
+            id--;
+            return id;
+        }
+        private UnknownUser GetUnknownUser(WebSocket socket, int id)
+        {
+            UnknownUser user = new UnknownUser(socket, id);
+            user.UserChanged += KnowUser;
+            return user;
+        }
 
         private KnownUser? GetUserFromToken(string token, WebSocket webSocket)
         {

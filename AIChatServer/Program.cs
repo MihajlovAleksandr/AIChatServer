@@ -1,23 +1,13 @@
-﻿using System.Net;
-using System.Text;
-using System.Net.WebSockets;
+﻿using AIChatServer;
+using System;
+using System.Net;
+using System.Net.Mail;
 
-namespace AIChatServer
+class Program
 {
-    using System;
-    using System.Net;
-    using System.Net.WebSockets;
-    using System.Text;
-    using System.Threading;
-    using System.Threading.Tasks;
-
-    class Server
+    static void Main()
     {
-        public static void Main()
-        {
-            UserManager userManager = new UserManager();
-            Console.ReadKey();
-        }
+        UserManager userManager = new UserManager();
+        Console.ReadKey();
     }
-
 }
