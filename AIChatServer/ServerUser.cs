@@ -16,6 +16,11 @@ namespace AIChatServer
         {
             webSockets = new List<WebSocket>();
         }
+        protected ServerUser(WebSocket socket)
+        {
+            webSockets = new List<WebSocket>();
+            AddConnection(socket);
+        }
         public void AddConnection(WebSocket webSocket)
         {
             webSockets.Add(webSocket);
