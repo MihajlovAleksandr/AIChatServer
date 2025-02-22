@@ -1,0 +1,32 @@
+﻿using Org.BouncyCastle.Crypto.Utilities;
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Text;
+using System.Threading.Tasks;
+
+namespace AIChatServer
+{
+    public class VerificationCode
+    {
+        private readonly int code;
+        private readonly DateTime validTo;
+        public int Code { get { return code; } }
+        public VerificationCode()
+        {
+            Random random = new();
+            code  = random.Next(100000, 999999);
+            validTo = DateTime.Now.AddMinutes(15);
+        }
+        public int Validate(int code)
+        {
+            if (this.code == code)
+            {
+                if(validTo > DateTime.Now)
+                    return 1;
+                return -1;
+            }
+            return 0;
+        }
+    }
+}

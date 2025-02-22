@@ -12,6 +12,7 @@ namespace AIChatServer
     {
         public event EventHandler<User> UserChanged;
         public int id { get; private set; }
+        private VerificationCode verificationCode;
         public UnknownUser(WebSocket socket, int id) : base(socket)
         {
             this.id = id;
@@ -20,7 +21,7 @@ namespace AIChatServer
         private void OnCommandGot(Command command) {
             if (command.Operation == "LoginIn")
             {
-                string username = command.GetData<string>("username");
+                string username = command.GetData<string>("email");
                 string password = command.GetData<string>("password");
                 User user = DB.LoginIn(username, password);
                 if (user != null)

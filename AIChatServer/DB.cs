@@ -18,10 +18,26 @@ namespace AIChatServer
         public static User GetUserById(int id)
         {
             string getUsersQuery = @"
-                SELECT u.Id, u.Username, u.Name, u.Age, u.Gender, preference,
-                p.MinAge, p.MaxAge, p.Gender as PrefGender
-                FROM Users u  
-                LEFT JOIN Preferences p ON u.Preference = p.Id WHERE u.Id = @userId";
+                SELECT 
+                    u.Id, 
+                    u.Email, 
+                    u.preference, 
+                    u.Premium,
+                    u.UserData,
+                    p.MinAge, 
+                    p.MaxAge, 
+                    p.Gender AS PrefGender,
+                    d.Gender,
+                    d.Name,
+                    d.Age
+                FROM 
+                    Users u
+                JOIN 
+                    Preferences p ON u.Preference = p.Id
+                JOIN 
+                    UserData d ON u.UserData = d.id
+                WHERE 
+                    u.Id = @userId";
             using (var connection = GetConnection())
             {
                 using (var getUsersCommand = new MySqlCommand(getUsersQuery, connection))
@@ -35,16 +51,21 @@ namespace AIChatServer
                             var user = new User
                             {
                                 id = reader.GetInt32(reader.GetOrdinal("Id")),
-                                username = reader.GetString(reader.GetOrdinal("Username")),
-                                name = reader.GetString(reader.GetOrdinal("Name")),
-                                age = reader.GetInt32(reader.GetOrdinal("Age")),
-                                gender = reader.GetChar(reader.GetOrdinal("Gender")),
+                                email = reader.GetString(reader.GetOrdinal("Email")),
+                                premium = reader.GetDateTime(reader.GetOrdinal("Premium")),
                                 preference = new Preference
                                 {
-                                    Id = reader.IsDBNull(reader.GetOrdinal("Preference")) ? 0 : reader.GetInt32(reader.GetOrdinal("preference")),
+                                    Id = reader.IsDBNull(reader.GetOrdinal("Preference")) ? 0 : reader.GetInt32(reader.GetOrdinal("Preference")),
                                     MinAge = reader.IsDBNull(reader.GetOrdinal("MinAge")) ? 0 : reader.GetInt32(reader.GetOrdinal("MinAge")),
                                     MaxAge = reader.IsDBNull(reader.GetOrdinal("MaxAge")) ? 0 : reader.GetInt32(reader.GetOrdinal("MaxAge")),
-                                    Gender = reader.IsDBNull(reader.GetOrdinal("PrefGender")) ? null : reader.GetChar("PrefGender")
+                                    Gender = reader.IsDBNull(reader.GetOrdinal("PrefGender")) ? null : reader.GetChar  (reader.GetOrdinal("PrefGender"))
+                                },
+                                userData = new UserData
+                                {
+                                    Id = reader.IsDBNull(reader.GetOrdinal("UserData")) ? 0 : reader.GetInt32(reader.GetOrdinal("UserData")),
+                                    Name = reader.IsDBNull(reader.GetOrdinal("Name")) ? string.Empty : reader.GetString(reader.GetOrdinal("Name")),
+                                    Age = reader.IsDBNull(reader.GetOrdinal("Age")) ? 0 : reader.GetInt32(reader.GetOrdinal("Age")),
+                                    Gender = reader.IsDBNull(reader.GetOrdinal("Gender")) ? ' ' : reader.GetChar(reader.GetOrdinal("Gender"))
                                 }
                             };
                             return user;
@@ -57,18 +78,35 @@ namespace AIChatServer
                 }
             }
         }
-        private static User GetUserByUsername(string username)
+        private static User GetUserByEmail(string email)
         {
             string getUsersQuery = @"
-                SELECT u.Id, u.Username, u.Name, u.Age, u.Gender, preference, u.Password,
-                p.MinAge, p.MaxAge, p.Gender as PrefGender
-                FROM Users u  
-                LEFT JOIN Preferences p ON u.Preference = p.Id WHERE u.Username = @username";
+                 SELECT 
+                    u.Id, 
+                    u.Email, 
+                    u.Password,
+                    u.preference,
+                    u.Premium,
+                    u.UserData,
+                    p.MinAge, 
+                    p.MaxAge, 
+                    p.Gender AS PrefGender,
+                    d.Gender,
+                    d.Name,
+                    d.Age
+                FROM 
+                    Users u
+                JOIN 
+                    Preferences p ON u.Preference = p.Id
+                JOIN 
+                    UserData d ON u.UserData = d.id
+                WHERE
+                    u.Email = @email";
             using (var connection = GetConnection())
             {
                 using (var getUsersCommand = new MySqlCommand(getUsersQuery, connection))
                 {
-                    getUsersCommand.Parameters.AddWithValue("@username", username);
+                    getUsersCommand.Parameters.AddWithValue("@email", email);
 
                     using (var reader = getUsersCommand.ExecuteReader())
                     {
@@ -77,19 +115,25 @@ namespace AIChatServer
                             var user = new User
                             {
                                 id = reader.GetInt32(reader.GetOrdinal("Id")),
-                                username = reader.GetString(reader.GetOrdinal("Username")),
-                                name = reader.GetString(reader.GetOrdinal("Name")),
-                                age = reader.GetInt32(reader.GetOrdinal("Age")),
+                                email = reader.GetString(reader.GetOrdinal("Email")),
                                 password = reader.GetString(reader.GetOrdinal("Password")),
-                                gender = reader.GetChar(reader.GetOrdinal("Gender")),
+                                premium = reader.GetDateTime(reader.GetOrdinal("Premium")),
                                 preference = new Preference
                                 {
-                                    Id = reader.IsDBNull(reader.GetOrdinal("Preference")) ? 0 : reader.GetInt32(reader.GetOrdinal("preference")),
+                                    Id = reader.IsDBNull(reader.GetOrdinal("Preference")) ? 0 : reader.GetInt32(reader.GetOrdinal("Preference")),
                                     MinAge = reader.IsDBNull(reader.GetOrdinal("MinAge")) ? 0 : reader.GetInt32(reader.GetOrdinal("MinAge")),
                                     MaxAge = reader.IsDBNull(reader.GetOrdinal("MaxAge")) ? 0 : reader.GetInt32(reader.GetOrdinal("MaxAge")),
-                                    Gender = reader.IsDBNull(reader.GetOrdinal("PrefGender")) ? null : reader.GetChar("PrefGender")
+                                    Gender = reader.IsDBNull(reader.GetOrdinal("PrefGender")) ? null : reader.GetChar(reader.GetOrdinal("PrefGender"))
+                                },
+                                userData = new UserData
+                                {
+                                    Id = reader.IsDBNull(reader.GetOrdinal("UserData")) ? 0 : reader.GetInt32(reader.GetOrdinal("UserData")),
+                                    Name = reader.IsDBNull(reader.GetOrdinal("Name")) ? string.Empty : reader.GetString(reader.GetOrdinal("Name")),
+                                    Age = reader.IsDBNull(reader.GetOrdinal("Age")) ? 0 : reader.GetInt32(reader.GetOrdinal("Age")),
+                                    Gender = reader.IsDBNull(reader.GetOrdinal("Gender")) ? ' ' : reader.GetChar(reader.GetOrdinal("Gender"))
                                 }
                             };
+                            
                             return user;
                         }
                         else
@@ -100,9 +144,9 @@ namespace AIChatServer
                 }
             }
         }
-        public static User LoginIn(string username, string password)
+        public static User LoginIn(string email, string password)
         {
-            User user = GetUserByUsername(username);
+            User user = GetUserByEmail(email);
             if (user != null)
             {
                 if (VerifyPassword(password, user.password))
