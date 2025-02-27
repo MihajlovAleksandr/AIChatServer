@@ -4,8 +4,9 @@
     {
         static void Main(string[] args)
         {
-            Console.WriteLine(DB.LoginIn("oleg228@gmail.com", "Qwerty123"));
-            Console.ReadKey();
+            UserManager userManager = new UserManager();
+            Console.ReadLine();
+            //Console.ReadLine();
         }
     }
 }

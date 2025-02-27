@@ -26,7 +26,7 @@ namespace AIChatServer
         private async void GetNewConnections()
         {
             HttpListener httpListener = new HttpListener();
-            httpListener.Prefixes.Add("https://192.168.165.151:8888/");
+            httpListener.Prefixes.Add("https://192.168.100.7:8888/");
             try
             {
                 httpListener.Start();
@@ -78,15 +78,25 @@ namespace AIChatServer
 
         private void KnowUser(object? sender, User e)
         {
-            WebSocket? webSocket = sender as WebSocket ?? throw new ArgumentException("webSocket was not webSocket, WHAT?!");
+            Connection? connection = sender as Connection ?? throw new ArgumentException("connection was not Connection, WHAT?!");
             Command command = new Command("CreateToken");
             command.AddData("token", tokenManager.GenerateToken(e.id));
-            ServerUser.SendCommand(webSocket, command);
-            KnownUser knownUser = new KnownUser(e, webSocket);
+            ServerUser.SendCommand(connection, command);
+            KnownUser knownUser = new KnownUser(e, connection);
             lock (syncObj) {
                 users.Remove(id);
                 users.Add(e.id, knownUser);
             }
+            knownUser.CommandGot += (s, e1) =>
+            {
+                Console.WriteLine(users.Count);
+                Console.WriteLine($"{sender}: {e1}"); 
+                Message message = e1.GetData<Message>("message");
+                Console.WriteLine($"Got message: {message}");
+                command = new Command("SendMessage");
+                command.AddData("message", message);
+                knownUser.SendCommandForAllConnections(command); 
+            };
         }
 
 
@@ -105,15 +115,15 @@ namespace AIChatServer
                 Console.WriteLine("Ошибка при установлении WebSocket-соединения: " + e.Message);
                 return;
             }
-            WebSocket webSocket = webSocketContext.WebSocket;
+            Connection connection = new Connection(webSocketContext.WebSocket);
             string? token = webSocketContext.Headers["token"];
             Console.WriteLine($"token: {token}");
-            KnownUser? knownUser = GetUserFromToken(token, webSocket);
+            KnownUser? knownUser = GetUserFromToken(token, connection);
             if (knownUser != null)
             {
                 knownUser.CommandGot += (sender, command) =>
                 {
-                   Console.WriteLine(users.Count);
+                    Console.WriteLine(users.Count);
                     Console.WriteLine($"{sender}: {command}");
                     Message message = command.GetData<Message>("message");
                     Console.WriteLine($"Got message: {message}");
@@ -129,7 +139,7 @@ namespace AIChatServer
             {
                 Console.WriteLine("I don't know u...");
                 int id = GetUnknownUserId();
-                users.Add(id, GetUnknownUser(webSocket, id));
+                users.Add(id, GetUnknownUser(connection, id));
             }
            
 
@@ -139,14 +149,14 @@ namespace AIChatServer
             id--;
             return id;
         }
-        private UnknownUser GetUnknownUser(WebSocket socket, int id)
+        private UnknownUser GetUnknownUser(Connection connection, int id)
         {
-            UnknownUser user = new UnknownUser(socket, id);
+            UnknownUser user = new UnknownUser(connection, id);
             user.UserChanged += KnowUser;
             return user;
         }
 
-        private KnownUser? GetUserFromToken(string token, WebSocket webSocket)
+        private KnownUser? GetUserFromToken(string token, Connection connection)
         {
             int userId = GetUserIdFromToken(token);
             Console.WriteLine($"{userId}");
@@ -157,17 +167,17 @@ namespace AIChatServer
                     userId = -1*userId;
                     Command command = new Command("RefreshToken");
                     command.AddData("token", tokenManager.GenerateToken(userId));
-                    ServerUser.SendCommand(webSocket, command);
+                    ServerUser.SendCommand(connection, command);
                 }
                 KnownUser knownUser;
                 if (users.TryGetValue(userId, out var user))
                 {
                     knownUser = (KnownUser)user;
-                    knownUser.AddConnection(webSocket);
+                    knownUser.AddConnection(connection);
                 }
                 else
                 {
-                    knownUser = new KnownUser(DB.GetUserById(userId), webSocket);
+                    knownUser = new KnownUser(DB.GetUserById(userId), connection);
                 }
                 return knownUser;
                 

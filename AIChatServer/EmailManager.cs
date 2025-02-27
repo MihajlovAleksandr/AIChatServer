@@ -6,14 +6,14 @@ using System.IO;
 
 namespace AIChatServer
 {
-    public class EmailManager
+    public static class EmailManager
     {
-        private string smtpServer;
-        private int port;
-        private string senderEmail;
-        private string password;
+        private static string smtpServer;
+        private static int port;
+        private static string senderEmail;
+        private static string password;
 
-        public EmailManager()
+        static EmailManager()
         {
             var configuration = new ConfigurationBuilder()
                 .SetBasePath(Directory.GetCurrentDirectory())
@@ -27,7 +27,7 @@ namespace AIChatServer
             password = settings["Password"];
         }
 
-        public void Send(string recipientEmail, string subject, string text, string imagePath)
+        public static void Send(string recipientEmail, string subject, string text, string imagePath)
         {
             try
             {
@@ -45,11 +45,7 @@ namespace AIChatServer
                     Body = text,
                     IsBodyHtml = true,
                 };
-
-                // Добавление получателя
                 mailMessage.To.Add(recipientEmail);
-
-                // Загрузка картинки и добавление её в письмо
                 var inlineImage = new LinkedResource(imagePath, "image/jpeg");
                 inlineImage.ContentId = Guid.NewGuid().ToString();
                 var htmlBody = text.Replace("[IMAGE]", inlineImage.ContentId);
@@ -66,10 +62,11 @@ namespace AIChatServer
                 Console.WriteLine($"Error sending email: {ex.Message}");
             }
         }
-        public void SendVerificationCode(string recipientEmail, int verificationCode)
+
+        public static void SendVerificationCode(string recipientEmail, int verificationCode)
         {
-            string code = $"{verificationCode/1000} {verificationCode%1000}";
-            string text = File.ReadAllText("VerificationCodeEmail.html").Replace("[VERIFICATION_CODE]",code);
+            string code = $"{verificationCode / 1000} {verificationCode % 1000}";
+            string text = File.ReadAllText("VerificationCodeEmail.html").Replace("[VERIFICATION_CODE]", code);
             Send(recipientEmail, $"{code} - Ваш верыфікацыйны код для уліковага запісу AIChat", text, "logo.png");
         }
     }

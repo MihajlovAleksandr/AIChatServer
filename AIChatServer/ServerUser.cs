@@ -2,6 +2,7 @@
 using System.Collections.Generic;
 using System.Linq;
 using System.Net.WebSockets;
+using System.Security.Cryptography;
 using System.Text;
 using System.Threading.Tasks;
 
@@ -9,93 +10,64 @@ namespace AIChatServer
 {
     public abstract class ServerUser
     {
-        private List<WebSocket> webSockets;
-        protected event Action<Command> CommandGot;
-        public event Action Disconnected;
+        private List<Connection> connections;
+        protected event EventHandler<Command> GotCommand;
+        public event EventHandler Disconnected;
         public ServerUser()
         {
-            webSockets = new List<WebSocket>();
+            connections = [];
         }
-        protected ServerUser(WebSocket socket)
+        ~ServerUser()
         {
-            webSockets = new List<WebSocket>();
-            AddConnection(socket);
+            Console.WriteLine($"\n\n\nDestroy: {GetType()}\n\n\n");
         }
-        public void AddConnection(WebSocket webSocket)
+        
+        protected ServerUser(ServerUser user)
         {
-            webSockets.Add(webSocket);
-            Task.Run(() => { HandleClient(webSocket); });
+            connections = [];
+            AddConnection(user);
+        }
+        protected ServerUser(Connection connection)
+        {
+            connections = [];
+            AddConnection(connection);
+        }
+        public void AddConnection(Connection connection)
+        {
+            connection.CommandGot += OnCommandGot;
+            connection.Disconnected += Disconnect;
+            connections.Add(connection);
         }
         public void AddConnection(ServerUser user)
         {
-            webSockets.Add(user.webSockets[0]);
-            Task.Run(() => { HandleClient(user.webSockets[0]); });
+            foreach (Connection connection in connections)
+                AddConnection(connection);
         }
-        private async void HandleClient(WebSocket webSocket)
+        private void OnCommandGot(object sender, Command command)
         {
-            byte[] buffer = new byte[1024];
-
-            while (webSocket.State == WebSocketState.Open)
-            {
-                try
-                {
-                    WebSocketReceiveResult result = await webSocket.ReceiveAsync(new ArraySegment<byte>(buffer), CancellationToken.None);
-
-                    if (result.MessageType == WebSocketMessageType.Close)
-                    {
-                        break;
-                    }
-                    else
-                    {
-                        Command command = JsonHelper.Deserialize<Command>(buffer);
-                        command.SetSender(webSocket);
-                        CommandGot.Invoke(command);
-                    }
-                }
-                catch (Exception e)
-                {
-                    Console.WriteLine("Ошибка при обмене данными: " + e.Message);
-                    break;
-                }
-            }
-            await webSocket.CloseAsync(WebSocketCloseStatus.NormalClosure, "Закрытие соединения", CancellationToken.None);
-            webSockets.Remove(webSocket);
-            if (webSockets.Count == 0)
-            {
-                Disconnected?.Invoke();
-            }
-            Console.WriteLine("Клиент отключился.");
+            GotCommand.Invoke(sender, command);
         }
-        protected void DeleteSocketFromList(WebSocket webSocket)
+        private void Disconnect(object? sender, EventArgs args)
         {
-            webSockets.Remove(webSocket);
+            if (sender is not Connection connection) return;
+            connection.CommandGot -= GotCommand.Invoke;
+            connections.Remove(connection);
+            if (connections.Count == 0) Disconnected.Invoke(this, new EventArgs());
         }
         public void SendCommandForAllConnections(Command command)
         {
             Console.WriteLine($"Sendinng command to client: {JsonHelper.Serialize(command)}");
             byte[] bytes = JsonHelper.SerializeToBytes(command);
-            foreach (var webSocket in webSockets)
+            foreach (var connection in connections)
             {
-                SendCommand(webSocket, bytes);
+                connection.SendCommand(bytes);
             }
         }
-
-        public static void SendCommand(WebSocket webSocket, Command command)
+        public static void SendCommand(Connection connection, Command command)
         {
             Console.WriteLine($"Sendinng command to client: {JsonHelper.Serialize(command)}");
-            SendCommand(webSocket, JsonHelper.SerializeToBytes(command));
+            connection.SendCommand(JsonHelper.SerializeToBytes(command));
         }
 
-        private async static void SendCommand(WebSocket webSocket, byte[] command)
-        {
-            try
-            {
-                await webSocket.SendAsync(new ArraySegment<byte>(command), WebSocketMessageType.Text, true, CancellationToken.None);
-            }
-            catch (Exception ex)
-            {
-                Console.WriteLine($"Failed to send Command: {ex.Message}");
-            }
-        }
     }
 }

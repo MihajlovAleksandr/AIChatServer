@@ -18,7 +18,7 @@ namespace AIChatServer
         [JsonIgnore]
         public string Operation { get { return operation; } }
         [JsonIgnore]
-        public WebSocket Sender { get; private set; }
+        public Connection Sender { get; private set; }
         public Command(string operation)
         {
             this.operation = operation;
@@ -27,7 +27,7 @@ namespace AIChatServer
         public Command()
         {
         }
-        public void AddData<T>(string name, T obj)
+        public void AddData<T>(string name, T? obj)
         {
             data.Add(name, JsonHelper.Serialize(obj));
         }
@@ -43,7 +43,7 @@ namespace AIChatServer
             Console.WriteLine("null");
             return default;
         }
-        public void SetSender(WebSocket sender)
+        public void SetSender(Connection sender)
         {
             Sender = sender;
         }

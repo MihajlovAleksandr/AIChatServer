@@ -1,41 +1,64 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Net.WebSockets;
-using System.Text;
-using System.Threading.Tasks;
-using Org.BouncyCastle.Asn1;
+﻿using System.Net.WebSockets;
 
 namespace AIChatServer
 {
     public class UnknownUser : ServerUser
     {
         public event EventHandler<User> UserChanged;
-        public int id { get; private set; }
+        public User user { get; private set; }
         private VerificationCode verificationCode;
-        public UnknownUser(WebSocket socket, int id) : base(socket)
+        public UnknownUser(Connection connection, int id) : base(connection)
         {
-            this.id = id;
-            CommandGot += OnCommandGot;
+            user = new User();
+            user.id = id;
+            base.GotCommand += (s, e) => GotCommand(e);
         }
-        private void OnCommandGot(Command command) {
-            if (command.Operation == "LoginIn")
-            {
-                string username = command.GetData<string>("email");
-                string password = command.GetData<string>("password");
-                User user = DB.LoginIn(username, password);
-                if (user != null)
-                {
-                    DeleteSocketFromList(command.Sender);
-                    CommandGot-= OnCommandGot;
-                    UserChanged.Invoke(command.Sender, user);
-                }
-            }
-            else if (command.Operation == "Registration")
-            {
+        private void GotCommand(Command command) {
 
+            Console.WriteLine(command);
+            switch (command.Operation)
+            {
+                case "LoginIn":
+                    string username = command.GetData<string>("email");
+                    string password = command.GetData<string>("password");
+                    KnowUser(command.Sender, DB.LoginIn(username, password));
+                    break;
+                case "Registration":
+                    user = command.GetData<User>("user");
+                    verificationCode = new VerificationCode();
+                    Console.WriteLine(verificationCode.Code);
+                    //EmailManager.SendVerificationCode(user.email, verificationCode.Code);
+                    SendCommand(command.Sender, new Command("VerificationCodeSend"));
+                    break;
+                case "VerificationCode":
+                    int code = command.GetData<int>("code");
+                    Command returnCommand = new Command("VerificationCodeAnswer");
+                    returnCommand.AddData("answer", verificationCode.Validate(code));
+                   
+                    SendCommand(command.Sender, returnCommand);
+                    break;
+                case "AddUserData":
+                    UserData data = command.GetData<UserData>("userData");
+                    user.userData = data;
+                    SendCommand(command.Sender, new Command("UserDataAdded"));
+                    break;
+                case "AddPreference":
+                    Preference preference = command.GetData<Preference>("preference");
+                    if (preference != null)
+                    {
+                        user.preference = preference;
+                    }
+                    user.id = (int)DB.AddUser(user);
+                    KnowUser(command.Sender, user);
+                    break;
             }
         }
-
+        private void KnowUser(Connection connection,User user)
+        {
+            if (user != null)
+            {
+                UserChanged.Invoke(connection, user);
+            }
+        }
     }
 }

@@ -16,22 +16,15 @@ namespace AIChatServer
         {
             return user.id;
         }
-        public KnownUser(User user)
+        public KnownUser(User user, Connection connection)
         {
             this.user = user;
-            base.CommandGot += (command) =>
-            {
-                CommandGot?.Invoke(user, command);
-            };
+            AddConnection(connection);
+            base.GotCommand += OnGotCommand;
         }
-        public KnownUser(User user, WebSocket socket)
+        private void OnGotCommand(object sender, Command command)
         {
-            this.user = user;
-            base.CommandGot += (command) =>
-            {
-                CommandGot?.Invoke(user, command);
-            };
-            AddConnection(socket);
+            CommandGot.Invoke(sender, command);
         }
     }
 }

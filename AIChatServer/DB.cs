@@ -156,6 +156,132 @@ namespace AIChatServer
             }
             return null;
         }
+
+        public static bool IsEmailFree(string email)
+        {
+            string query = @"
+        SELECT COUNT(*)
+        FROM Users
+        WHERE Email = @Email";
+
+            using (var connection = GetConnection())
+            {
+                using (var command = new MySqlCommand(query, connection))
+                {
+                    command.Parameters.AddWithValue("@Email", email);
+                    int count = Convert.ToInt32(command.ExecuteScalar());
+                    return count == 0;
+                }
+            }
+        }
+        public static int? AddUser(User user)
+        {
+            using (var connection = GetConnection())
+            {
+                using (var transaction = connection.BeginTransaction())
+                {
+                    try
+                    {
+                        // Вставка UserData
+                        int userDataId = InsertUserData(user.userData, connection, transaction);
+
+                        // Вставка Preferences
+                        int preferenceId = InsertPreference(user.preference ?? new Preference(), connection, transaction);
+
+                        // Вставка Users и получение id нового пользователя
+                        int userId = InsertUser(user, userDataId, preferenceId, connection, transaction);
+
+                        transaction.Commit();
+                        return userId;
+                    }
+                    catch
+                    {
+                        transaction.Rollback();
+                        return null;
+                    }
+                }
+            }
+        }
+
+        private static int InsertUserData(UserData userData, MySqlConnection connection, MySqlTransaction transaction)
+        {
+            string insertUserDataQuery = @"
+        INSERT INTO UserData (Name, Age, Gender) 
+        VALUES (@Name, @Age, @Gender);
+        SELECT LAST_INSERT_ID();";
+
+            using (var command = new MySqlCommand(insertUserDataQuery, connection, transaction))
+            {
+                command.Parameters.AddWithValue("@Name", userData.Name);
+                command.Parameters.AddWithValue("@Age", userData.Age);
+                command.Parameters.AddWithValue("@Gender", userData.Gender);
+
+                return Convert.ToInt32(command.ExecuteScalar());
+            }
+        }
+
+        private static int InsertPreference(Preference preference, MySqlConnection connection, MySqlTransaction transaction)
+        {
+            string insertPreferenceQuery = @"
+INSERT INTO Preferences (MinAge, MaxAge, Gender) 
+VALUES (@MinAge, @MaxAge, @Gender);
+SELECT LAST_INSERT_ID();";
+
+            using (var command = new MySqlCommand(insertPreferenceQuery, connection, transaction))
+            {
+                // Проверяем на null значения и устанавливаем параметры соответственно
+                command.Parameters.AddWithValue("@MinAge", (object)preference.MinAge);
+                command.Parameters.AddWithValue("@MaxAge", (object)preference.MaxAge);
+                command.Parameters.AddWithValue("@Gender", (object)preference.Gender);
+
+                return Convert.ToInt32(command.ExecuteScalar());
+            }
+        }
+
+        private static int InsertUser(User user, int userDataId, int preferenceId, MySqlConnection connection, MySqlTransaction transaction)
+        {
+            string insertUserQuery = @"
+        INSERT INTO Users (Email, Password, Preference, Premium, UserData) 
+        VALUES (@Email, @Password, @Preference, @Premium, @UserData);
+        SELECT LAST_INSERT_ID();";
+
+            using (var command = new MySqlCommand(insertUserQuery, connection, transaction))
+            {
+                command.Parameters.AddWithValue("@Email", user.email);
+                command.Parameters.AddWithValue("@Password", HashPassword(user.password));
+                command.Parameters.AddWithValue("@Preference", preferenceId);
+                command.Parameters.AddWithValue("@Premium", user.premium);
+                command.Parameters.AddWithValue("@UserData", userDataId);
+
+                return Convert.ToInt32(command.ExecuteScalar());
+            }
+        }
+        public static bool UpdatePreference(int userId, Preference newPreference)
+        {
+            string updatePreferenceQuery = @"
+                UPDATE Preferences
+                SET MinAge = @MinAge, MaxAge = @MaxAge, Gender = @Gender
+                WHERE Id = (
+                    SELECT Preference 
+                    FROM Users 
+                    WHERE Id = @UserId)";
+
+            using (var connection = GetConnection())
+            {
+                using (var command = new MySqlCommand(updatePreferenceQuery, connection))
+                {
+                    command.Parameters.AddWithValue("@MinAge", newPreference.MinAge);
+                    command.Parameters.AddWithValue("@MaxAge", newPreference.MaxAge);
+                    command.Parameters.AddWithValue("@Gender", newPreference.Gender);
+                    command.Parameters.AddWithValue("@UserId", userId);
+
+                    int rowsAffected = command.ExecuteNonQuery();
+                    return rowsAffected > 0;
+                }
+            }
+        }
+
+
         private static string HashPassword(string password)
         {
             using (SHA256 sha256 = SHA256.Create())
@@ -175,7 +301,6 @@ namespace AIChatServer
             string hashedInput = HashPassword(password);
             return hashedInput == hashedPassword;
         }
-
 
         public static List<Message> GetAllMessages(string connectionString)
         {
