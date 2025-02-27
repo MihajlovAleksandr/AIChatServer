@@ -14,19 +14,17 @@ namespace AIChatServer
     public class UserManager
     {
         private Dictionary<int, ServerUser> users;
-        private readonly TokenManager tokenManager;
         private readonly object syncObj = new object();
         private int id = 0;
         public UserManager()
         {
             users = new Dictionary<int, ServerUser>();
-            tokenManager = new TokenManager();
             Task.Run(GetNewConnections);
         }
         private async void GetNewConnections()
         {
             HttpListener httpListener = new HttpListener();
-            httpListener.Prefixes.Add("https://192.168.100.7:8888/");
+            httpListener.Prefixes.Add("https://192.168.100.11:8888/");
             try
             {
                 httpListener.Start();
@@ -80,7 +78,10 @@ namespace AIChatServer
         {
             Connection? connection = sender as Connection ?? throw new ArgumentException("connection was not Connection, WHAT?!");
             Command command = new Command("CreateToken");
-            command.AddData("token", tokenManager.GenerateToken(e.id));
+            command.AddData("token", TokenManager.GenerateToken(e.id));
+            ServerUser.SendCommand(connection, command);
+            command = new Command("LoginIn");
+            command.AddData("userId", e.id);
             ServerUser.SendCommand(connection, command);
             KnownUser knownUser = new KnownUser(e, connection);
             lock (syncObj) {
@@ -153,6 +154,11 @@ namespace AIChatServer
         {
             UnknownUser user = new UnknownUser(connection, id);
             user.UserChanged += KnowUser;
+            user.Disconnected += (s, e) =>
+            {
+                UnknownUser su = (UnknownUser)s;
+                users.Remove(su.user.id);
+            };
             return user;
         }
 
@@ -166,7 +172,7 @@ namespace AIChatServer
                 {
                     userId = -1*userId;
                     Command command = new Command("RefreshToken");
-                    command.AddData("token", tokenManager.GenerateToken(userId));
+                    command.AddData("token", TokenManager.GenerateToken(userId));
                     ServerUser.SendCommand(connection, command);
                 }
                 KnownUser knownUser;
@@ -189,7 +195,7 @@ namespace AIChatServer
 
         private int GetUserIdFromToken(string token)
         {
-            if (tokenManager.ValidateToken(token, out int userId, out DateTime expirationTime))
+            if (TokenManager.ValidateToken(token, out int userId, out DateTime expirationTime))
             {
                 if (expirationTime < DateTime.UtcNow.AddDays(7))
                 {

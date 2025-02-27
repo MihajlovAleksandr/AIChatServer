@@ -8,14 +8,15 @@ using System.Text;
 
 namespace AIChatServer
 {
-    public class TokenManager
+    public static class TokenManager
     {
-        private readonly int expireDays;
-        private readonly string audience;
-        private readonly string issuer;
-        private readonly string secretKey;
+        private static readonly int expireDays;
+        private static readonly int expireMinutes;
+        private static readonly string audience;
+        private static readonly string issuer;
+        private static readonly string secretKey;
 
-        public TokenManager()
+        static TokenManager()
         {
             var configuration = new ConfigurationBuilder()
                 .SetBasePath(Directory.GetCurrentDirectory())
@@ -28,6 +29,7 @@ namespace AIChatServer
             issuer = jwtSettings["Issuer"];
             audience = jwtSettings["Audience"];
             expireDays = int.Parse(jwtSettings["ExpireDays"]);
+            expireMinutes = int.Parse(jwtSettings["ExpireMinutes"]);
 
             // Проверка длины ключа
             if (Encoding.UTF8.GetBytes(secretKey).Length < 32)
@@ -36,7 +38,7 @@ namespace AIChatServer
             }
         }
 
-        public string GenerateToken(int userId)
+        public static string GenerateToken(int userId)
         {
             var key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(secretKey));
 
@@ -64,8 +66,36 @@ namespace AIChatServer
             var tokenHandler = new JwtSecurityTokenHandler();
             return tokenHandler.WriteToken(token);
         }
+        public static string GenerateEntryToken(int userId)
+        {
+            var key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(secretKey));
 
-        public bool ValidateToken(string token, out int userId, out DateTime expirationTime)
+            // Создание подписывающих учетных данных
+            var creds = new SigningCredentials(key, SecurityAlgorithms.HmacSha256);
+
+            // Создание утверждений (claims)
+            var claims = new[]
+            {
+                new Claim(JwtRegisteredClaimNames.Sub, userId.ToString()), // Добавляем userId в claim "sub"
+                new Claim(JwtRegisteredClaimNames.Jti, Guid.NewGuid().ToString()),
+                new Claim(JwtRegisteredClaimNames.Iat, DateTimeOffset.UtcNow.ToUnixTimeSeconds().ToString(), ClaimValueTypes.Integer64),
+            };
+
+            // Создание JWT токена
+            var token = new JwtSecurityToken(
+                issuer: issuer,
+                audience: audience,
+                claims: claims,
+                expires: DateTime.UtcNow.AddMinutes(expireDays),
+                signingCredentials: creds
+            );
+
+            // Генерация строки токена
+            var tokenHandler = new JwtSecurityTokenHandler();
+            return tokenHandler.WriteToken(token);
+        }
+
+        public static bool ValidateToken(string token, out int userId, out DateTime expirationTime)
         {
             var tokenHandler = new JwtSecurityTokenHandler();
             var key = Encoding.UTF8.GetBytes(secretKey);
@@ -143,7 +173,7 @@ namespace AIChatServer
             }
         }
 
-        public void DecodeToken(string token)
+        public static void DecodeToken(string token)
         {
             var tokenHandler = new JwtSecurityTokenHandler();
             var jwtToken = tokenHandler.ReadJwtToken(token);

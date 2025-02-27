@@ -32,7 +32,7 @@ namespace AIChatServer
         private async void HandleClient(WebSocket webSocket)
         {
             byte[] buffer;
-
+          //  Task.Delay(100);
             while (webSocket.State == WebSocketState.Open)
             {
                 buffer = new byte[1024];

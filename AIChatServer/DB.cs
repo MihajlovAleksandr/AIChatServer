@@ -117,7 +117,7 @@ namespace AIChatServer
                                 id = reader.GetInt32(reader.GetOrdinal("Id")),
                                 email = reader.GetString(reader.GetOrdinal("Email")),
                                 password = reader.GetString(reader.GetOrdinal("Password")),
-                                premium = reader.GetDateTime(reader.GetOrdinal("Premium")),
+                                premium = reader.IsDBNull(reader.GetOrdinal("Premium")) ? null : reader.GetDateTime(reader.GetOrdinal("Premium")),
                                 preference = new Preference
                                 {
                                     Id = reader.IsDBNull(reader.GetOrdinal("Preference")) ? 0 : reader.GetInt32(reader.GetOrdinal("Preference")),
@@ -282,7 +282,7 @@ SELECT LAST_INSERT_ID();";
         }
 
 
-        private static string HashPassword(string password)
+        public static string HashPassword(string password)
         {
             using (SHA256 sha256 = SHA256.Create())
             {

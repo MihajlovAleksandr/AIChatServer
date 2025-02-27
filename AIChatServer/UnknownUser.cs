@@ -18,6 +18,11 @@ namespace AIChatServer
             Console.WriteLine(command);
             switch (command.Operation)
             {
+                case "GetEntryToken":
+                    Command entryTokenCommand =new Command("EntryToken");
+                    entryTokenCommand.AddData("token", TokenManager.GenerateEntryToken(user.id));
+                    SendCommand(command.Sender, entryTokenCommand);
+                    break;
                 case "LoginIn":
                     string username = command.GetData<string>("email");
                     string password = command.GetData<string>("password");
@@ -34,7 +39,6 @@ namespace AIChatServer
                     int code = command.GetData<int>("code");
                     Command returnCommand = new Command("VerificationCodeAnswer");
                     returnCommand.AddData("answer", verificationCode.Validate(code));
-                   
                     SendCommand(command.Sender, returnCommand);
                     break;
                 case "AddUserData":
