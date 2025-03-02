@@ -108,6 +108,9 @@ namespace AIChatServer
             {
                 webSocketContext = await httpContext.AcceptWebSocketAsync(null);
                 Console.WriteLine($"Клиент подключился через WebSocket.");
+
+                string clientIp = httpContext.Request.RemoteEndPoint?.Address.ToString();
+                Console.WriteLine(clientIp);
             }
             catch (Exception e)
             {
@@ -124,14 +127,7 @@ namespace AIChatServer
             {
                 knownUser.CommandGot += (sender, command) =>
                 {
-                    Console.WriteLine(users.Count);
-                    Console.WriteLine($"{sender}: {command}");
-                    Message message = command.GetData<Message>("message");
-                    Console.WriteLine($"Got message: {message}");
-                    command = new Command("SendMessage");
-                    command.AddData("message", message);
-                    knownUser.SendCommandForAllConnections(command);
-
+                    Console.WriteLine($"KnowUser: {command}");
                 };
                 users.Add(knownUser.GetUserId(), knownUser);
                 Console.WriteLine("I know u...");

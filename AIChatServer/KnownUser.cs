@@ -21,10 +21,15 @@ namespace AIChatServer
             this.user = user;
             AddConnection(connection);
             base.GotCommand += OnGotCommand;
+            Disconnected += OnDisconnect;
         }
         private void OnGotCommand(object sender, Command command)
         {
             CommandGot.Invoke(sender, command);
+        }
+        private void OnDisconnect(object seder, EventArgs e)
+        {
+
         }
     }
 }

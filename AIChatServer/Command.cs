@@ -49,7 +49,12 @@ namespace AIChatServer
         }
         public override string ToString()
         {
-            return $"{operation}: \nData count: {data.Count}";
+            string info = $"{operation}: \nData count: {data.Count}:\n";
+            foreach (var obj in data)
+            {
+                info += obj.ToString()+ "\n";
+            }
+            return  info;
         }
     }
 }
