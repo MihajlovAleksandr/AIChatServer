@@ -10,6 +10,7 @@ namespace AIChatServer
 {
     public class Connection
     {
+        public int id { get; set; }
         private WebSocket webSocket;
         private event EventHandler<Command> CommandGotHandler;
         public event EventHandler<Command> CommandGot

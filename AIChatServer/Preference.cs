@@ -1,11 +1,20 @@
-﻿namespace AIChatServer
+﻿using Newtonsoft.Json;
+
+namespace AIChatServer
 {
     public class Preference
     {
-        public int Id;
-        public int MinAge;
-        public int MaxAge;
-        public char? Gender;
+        [JsonProperty("id")]
+        public int Id { get; set; }
+        [JsonProperty("minAge")]
+
+        public int MinAge { get; set; }
+        [JsonProperty("maxAge")]
+
+        public int MaxAge { get; set; }
+        [JsonProperty("gender")]
+
+        public string Gender { get; set; }
         public override string ToString()
         {
             return $"Preference {{{Id}}}:\n{Gender}{MinAge}-{MaxAge}";

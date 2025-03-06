@@ -10,7 +10,7 @@ namespace AIChatServer
         public UnknownUser(Connection connection, int id) : base(connection)
         {
             user = new User();
-            user.id = id;
+            user.Id = id;
             base.GotCommand += (s, e) => GotCommand(e);
         }
         private void GotCommand(Command command) {
@@ -20,21 +20,30 @@ namespace AIChatServer
             {
                 case "GetEntryToken":
                     Command entryTokenCommand =new Command("EntryToken");
-                    entryTokenCommand.AddData("token", TokenManager.GenerateEntryToken(user.id));
+                    entryTokenCommand.AddData("token", TokenManager.GenerateEntryToken(user.Id));
                     SendCommand(command.Sender, entryTokenCommand);
                     break;
                 case "LoginIn":
-                    string username = command.GetData<string>("email");
+                    string email = command.GetData<string>("email");
                     string password = command.GetData<string>("password");
-                    KnowUser(command.Sender, DB.LoginIn(username, password));
+                    KnowUser(command.Sender, DB.LoginIn(email, password));
                     break;
                 case "Registration":
-                    user = command.GetData<User>("user");
-                    verificationCode = new VerificationCode();
-                    Console.WriteLine(verificationCode.Code);
-                    //EmailManager.SendVerificationCode(user.email, verificationCode.Code);
-                    SendCommand(command.Sender, new Command("VerificationCodeSend"));
-                    break;
+                    email = command.GetData<string>("email");
+                    if (DB.IsEmailFree(email))
+                    {
+                        password = command.GetData<string>("password");
+                        user = new User(email, password);
+                        verificationCode = new VerificationCode();
+                        Console.WriteLine(verificationCode.Code);
+                        //EmailManager.SendVerificationCode(user.email, verificationCode.Code);
+                        SendCommand(command.Sender, new Command("VerificationCodeSend"));
+                    }
+                    else
+                    {
+                        SendCommand(command.Sender, new Command("EmailIsBusy"));
+                    }
+                        break;
                 case "VerificationCode":
                     int code = command.GetData<int>("code");
                     Command returnCommand = new Command("VerificationCodeAnswer");
@@ -43,16 +52,16 @@ namespace AIChatServer
                     break;
                 case "AddUserData":
                     UserData data = command.GetData<UserData>("userData");
-                    user.userData = data;
+                    user.UserData = data;
                     SendCommand(command.Sender, new Command("UserDataAdded"));
                     break;
                 case "AddPreference":
                     Preference preference = command.GetData<Preference>("preference");
                     if (preference != null)
                     {
-                        user.preference = preference;
+                        user.Preference = preference;
                     }
-                    user.id = (int)DB.AddUser(user);
+                    user.Id = (int)DB.AddUser(user);
                     KnowUser(command.Sender, user);
                     break;
             }

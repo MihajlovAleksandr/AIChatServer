@@ -17,7 +17,7 @@ namespace AIChatServer
 
         public bool IsFits(Preference preference)
         {
-            if (preference.Gender == Gender)
+            if (preference.Gender[0] == Gender || preference.Gender=="Any")
             {
                 if (Age > preference.MinAge && Age < preference.MaxAge)
                 {

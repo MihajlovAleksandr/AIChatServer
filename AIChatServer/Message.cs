@@ -13,26 +13,34 @@ namespace AIChatServer
 
     public class Message
     {
-        public int id;
-        public int chat;
-        public int sender;
-        public string text;
+        public int Id { get; set; }
+        public int Chat { get; set; }
+        public int Sender { get; set; }
+        public string Text { get; set; }
 
         [JsonProperty(DefaultValueHandling = DefaultValueHandling.Ignore)]
-        public DateTime? time;
+        public DateTime? Time { get; set; }
+
+        [JsonProperty(DefaultValueHandling = DefaultValueHandling.Ignore)]
+        public DateTime LastUpdate { get; set; }
 
         [OnDeserialized]
         private void OnDeserialized(StreamingContext context)
         {
-            if (time == null)
+            if (Time == null)
             {
-                time = DateTime.Now.ToUniversalTime();
+                Time = DateTime.Now.ToUniversalTime();
             }
+            if (LastUpdate == null)
+            {
+                LastUpdate = DateTime.Now.ToUniversalTime();
+            }
+
         }
 
         public override string ToString()
         {
-            return $"Message {id}:\nFrom User{sender} To Chat{chat} In {JsonHelper.Serialize(time)}\n{text}";
+            return $"Message {Id}:\nFrom User{Sender} To Chat{Chat} In {JsonHelper.Serialize(Time)}\nUpdate in {JsonHelper.Serialize(LastUpdate)}\n{Text}";
         }
     }
 

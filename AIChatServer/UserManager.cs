@@ -24,7 +24,7 @@ namespace AIChatServer
         private async void GetNewConnections()
         {
             HttpListener httpListener = new HttpListener();
-            httpListener.Prefixes.Add("https://192.168.100.11:8888/");
+            httpListener.Prefixes.Add("https://192.168.100.7:8888/");
             try
             {
                 httpListener.Start();
@@ -78,15 +78,15 @@ namespace AIChatServer
         {
             Connection? connection = sender as Connection ?? throw new ArgumentException("connection was not Connection, WHAT?!");
             Command command = new Command("CreateToken");
-            command.AddData("token", TokenManager.GenerateToken(e.id));
+            command.AddData("token", TokenManager.GenerateToken(e.Id));
             ServerUser.SendCommand(connection, command);
             command = new Command("LoginIn");
-            command.AddData("userId", e.id);
+            command.AddData("userId", e.Id);
             ServerUser.SendCommand(connection, command);
             KnownUser knownUser = new KnownUser(e, connection);
             lock (syncObj) {
                 users.Remove(id);
-                users.Add(e.id, knownUser);
+                users.Add(e.Id, knownUser);
             }
             knownUser.CommandGot += (s, e1) =>
             {
@@ -153,7 +153,7 @@ namespace AIChatServer
             user.Disconnected += (s, e) =>
             {
                 UnknownUser su = (UnknownUser)s;
-                users.Remove(su.user.id);
+                users.Remove(su.user.Id);
             };
             return user;
         }

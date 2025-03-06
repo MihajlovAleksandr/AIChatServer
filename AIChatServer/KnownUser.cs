@@ -14,7 +14,7 @@ namespace AIChatServer
 
         public int GetUserId()
         {
-            return user.id;
+            return user.Id;
         }
         public KnownUser(User user, Connection connection)
         {

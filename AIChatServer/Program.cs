@@ -1,4 +1,5 @@
-﻿using System.Linq.Expressions;
+﻿using MySql.Data.MySqlClient;
+using System.Linq.Expressions;
 
 namespace AIChatServer
 {
@@ -6,9 +7,8 @@ namespace AIChatServer
     {
         static void Main(string[] args)
         {
-            Console.WriteLine( Convert.ToString(long.MaxValue, 2));
+            UserManager userManager = new UserManager();
             Console.ReadLine();
-            //Console.ReadLine();
         }
     }
 }
