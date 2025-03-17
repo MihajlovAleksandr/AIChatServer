@@ -24,7 +24,7 @@ namespace AIChatServer
         private async void GetNewConnections()
         {
             HttpListener httpListener = new HttpListener();
-            httpListener.Prefixes.Add("https://192.168.100.7:8888/");
+            httpListener.Prefixes.Add("https://192.168.100.15:8888/");
             try
             {
                 httpListener.Start();

@@ -16,7 +16,7 @@ namespace AIChatServer
         public VerificationCode()
         {
             Random random = new();
-            code = 111111;//random.Next(100000, 999999);
+            code = random.Next(100000, 999999);
             validTo = DateTime.Now.AddMinutes(15);
             isVerify = false;
         }
