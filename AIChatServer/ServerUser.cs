@@ -10,10 +10,11 @@ namespace AIChatServer
 {
     public abstract class ServerUser
     {
-        private int connectionId;
         private List<Connection> connections;
         protected event EventHandler<Command> GotCommand;
         public event EventHandler Disconnected;
+
+        public User User { get; protected set; }
         public ServerUser()
         {
             connections = [];

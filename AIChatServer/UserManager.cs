@@ -13,18 +13,17 @@ namespace AIChatServer
 {
     public class UserManager
     {
-        private Dictionary<int, ServerUser> users;
-        private readonly object syncObj = new object();
         private int id = 0;
+        ConnectionManager connectionManager;
         public UserManager()
         {
-            users = new Dictionary<int, ServerUser>();
+            connectionManager = new ConnectionManager();
             Task.Run(GetNewConnections);
         }
         private async void GetNewConnections()
         {
             HttpListener httpListener = new HttpListener();
-            httpListener.Prefixes.Add("https://192.168.100.15:8888/");
+            httpListener.Prefixes.Add("https://192.168.100.7:8888/");
             try
             {
                 httpListener.Start();
@@ -61,43 +60,21 @@ namespace AIChatServer
             }
         }
 
-
-        public void ConnectUser(KnownUser serverUser)
-        {
-            lock (syncObj)
-            {
-                int userId = serverUser.GetUserId();
-                if (!users.TryAdd(userId, serverUser))
-                {
-                    users[userId].AddConnection(serverUser);
-                }
-            }
-        }
-
         private void KnowUser(object? sender, User e)
         {
             Connection? connection = sender as Connection ?? throw new ArgumentException("connection was not Connection, WHAT?!");
             Command command = new Command("CreateToken");
-            command.AddData("token", TokenManager.GenerateToken(e.Id));
+            command.AddData("token", TokenManager.GenerateToken(e.Id, connection.Id));
+            Console.WriteLine(connection.Id);
+            DB.UpdateConnection(connection.Id, e.Id);
             ServerUser.SendCommand(connection, command);
             command = new Command("LoginIn");
             command.AddData("userId", e.Id);
             ServerUser.SendCommand(connection, command);
             KnownUser knownUser = new KnownUser(e, connection);
-            lock (syncObj) {
-                users.Remove(id);
-                users.Add(e.Id, knownUser);
-            }
-            knownUser.CommandGot += (s, e1) =>
-            {
-                Console.WriteLine(users.Count);
-                Console.WriteLine($"{sender}: {e1}"); 
-                Message message = e1.GetData<Message>("message");
-                Console.WriteLine($"Got message: {message}");
-                command = new Command("SendMessage");
-                command.AddData("message", message);
-                knownUser.SendCommandForAllConnections(command); 
-            };
+            connectionManager.ReconnectUser(id, e.Id, knownUser);
+            knownUser.CommandGot += KnowUserGotCommand;
+            knownUser.Disconnected += DissconnectUser;
         }
 
 
@@ -119,87 +96,76 @@ namespace AIChatServer
                 Console.WriteLine("Ошибка при установлении WebSocket-соединения: " + e.Message);
                 return;
             }
-            Connection connection = new Connection(webSocketContext.WebSocket);
             string? token = webSocketContext.Headers["token"];
-            Console.WriteLine($"token: {token}");
-            KnownUser? knownUser = GetUserFromToken(token, connection);
-            if (knownUser != null)
+            string device = webSocketContext.Headers["device"] ?? throw new ArgumentException("Device is not sent");
+            var id = GetIdFromToken(token);
+            Connection connection;
+
+            if (id.Item1 != 0 && DB.VerifyConnection(id.Item2, id.Item1, device))
             {
-                knownUser.CommandGot += (sender, command) =>
+                connection = new Connection(id.Item2, webSocketContext.WebSocket);
+                lock (connectionManager.syncObj)
                 {
-                    Console.WriteLine($"KnowUser: {command}");
-                };
-                users.Add(knownUser.GetUserId(), knownUser);
-                Console.WriteLine("I know u...");
+                    KnownUser knownUser = connectionManager.GetUserWithoutLock(id.Item1, connection);
+                    if (knownUser != null)
+                    {
+                        knownUser.CommandGot += KnowUserGotCommand;
+                        knownUser.Disconnected += DissconnectUser;
+                        connectionManager.ConnectUserWithoutLock(knownUser.User.Id, knownUser);
+                        Console.WriteLine("I know u...");
+                    }
+                }
             }
             else
             {
                 Console.WriteLine("I don't know u...");
-                int id = GetUnknownUserId();
-                users.Add(id, GetUnknownUser(connection, id));
+                connection = new Connection(DB.AddConnection(device), webSocketContext.WebSocket);
+                int userId = GetUnknownUserId();
+                connectionManager.ConnectUser(userId, GetUnknownUser(connection, userId));
             }
-           
-
-        }
-        private int GetUnknownUserId()
-        {
-            id--;
-            return id;
         }
         private UnknownUser GetUnknownUser(Connection connection, int id)
         {
             UnknownUser user = new UnknownUser(connection, id);
             user.UserChanged += KnowUser;
-            user.Disconnected += (s, e) =>
-            {
-                UnknownUser su = (UnknownUser)s;
-                users.Remove(su.user.Id);
-            };
+            user.Disconnected += DissconnectUser;
+            user.SendCommandForAllConnections(new Command("LogOut"));
             return user;
         }
 
-        private KnownUser? GetUserFromToken(string token, Connection connection)
+        private int GetUnknownUserId()
         {
-            int userId = GetUserIdFromToken(token);
-            Console.WriteLine($"{userId}");
-            if (userId != 0)
-            {
-                if(userId<0)
-                {
-                    userId = -1*userId;
-                    Command command = new Command("RefreshToken");
-                    command.AddData("token", TokenManager.GenerateToken(userId));
-                    ServerUser.SendCommand(connection, command);
-                }
-                KnownUser knownUser;
-                if (users.TryGetValue(userId, out var user))
-                {
-                    knownUser = (KnownUser)user;
-                    knownUser.AddConnection(connection);
-                }
-                else
-                {
-                    knownUser = new KnownUser(DB.GetUserById(userId), connection);
-                }
-                return knownUser;
-                
-            }
-            return null;
+            id--;
+            return id;
         }
 
-
-
-        private int GetUserIdFromToken(string token)
+        private (int, int) GetIdFromToken(string token)
         {
-            if (TokenManager.ValidateToken(token, out int userId, out DateTime expirationTime))
+            if (TokenManager.ValidateToken(token, out int userId, out int connectionId, out DateTime expirationTime))
             {
                 if (expirationTime < DateTime.UtcNow.AddDays(7))
                 {
-                    return -1*userId;
+                    return (-1*userId, connectionId);
                 }
-                return userId;
+                return (userId, connectionId);
             }
-            return 0;
+            return (0,0);
+        }
+
+        private void KnowUserGotCommand(object sender, Command command)
+        {
+            Console.WriteLine($"{sender}: {command}");
+            Message message = command.GetData<Message>("message");
+            Console.WriteLine($"Got message: {message}");
+            command = new Command("SendMessage");
+            command.AddData("message", message);
+            KnownUser knownUser = (KnownUser)sender;
+            knownUser.SendCommandForAllConnections(command);
+        }
+        private void DissconnectUser(object sender, EventArgs eventArgs)
+        {
+            ServerUser su = (ServerUser)sender;
+            connectionManager.DisconnectUser(su.User.Id);
         }
     }
 }

@@ -5,13 +5,13 @@ namespace AIChatServer
     public class UnknownUser : ServerUser
     {
         public event EventHandler<User> UserChanged;
-        public User user { get; private set; }
         private VerificationCode verificationCode;
         public UnknownUser(Connection connection, int id) : base(connection)
         {
-            user = new User();
-            user.Id = id;
+            User = new User();
+            User.Id = id;
             base.GotCommand += (s, e) => GotCommand(e);
+            Disconnected += (s, e) => { DB.DeleteUnknownConnection(connection.Id); };
         }
         private void GotCommand(Command command) {
 
@@ -20,7 +20,7 @@ namespace AIChatServer
             {
                 case "GetEntryToken":
                     Command entryTokenCommand =new Command("EntryToken");
-                    entryTokenCommand.AddData("token", TokenManager.GenerateEntryToken(user.Id));
+                    entryTokenCommand.AddData("token", TokenManager.GenerateEntryToken(User.Id));
                     SendCommand(command.Sender, entryTokenCommand);
                     break;
                 case "LoginIn":
@@ -33,10 +33,10 @@ namespace AIChatServer
                     if (DB.IsEmailFree(email))
                     {
                         password = command.GetData<string>("password");
-                        user = new User(email, password);
+                        User = new User(email, password);
                         verificationCode = new VerificationCode();
                         Console.WriteLine(verificationCode.Code);
-                        EmailManager.SendVerificationCode(user.Email, verificationCode.Code);
+                        //EmailManager.SendVerificationCode(user.Email, verificationCode.Code);
                         SendCommand(command.Sender, new Command("VerificationCodeSend"));
                     }
                     else
@@ -52,17 +52,18 @@ namespace AIChatServer
                     break;
                 case "AddUserData":
                     UserData data = command.GetData<UserData>("userData");
-                    user.UserData = data;
+                    User.UserData = data;
                     SendCommand(command.Sender, new Command("UserDataAdded"));
                     break;
                 case "AddPreference":
                     Preference preference = command.GetData<Preference>("preference");
                     if (preference != null)
                     {
-                        user.Preference = preference;
+                        User.Preference = preference;
                     }
-                    user.Id = (int)DB.AddUser(user);
-                    KnowUser(command.Sender, user);
+                    User.Id = (int)DB.AddUser(User, command.Sender.Id);
+                    
+                    KnowUser(command.Sender, User);
                     break;
             }
         }

@@ -10,8 +10,8 @@ namespace AIChatServer
 {
     public class Connection
     {
-        public int id { get; set; }
-        private WebSocket webSocket;
+        public int Id { get; set; }
+        private readonly WebSocket webSocket;
         private event EventHandler<Command> CommandGotHandler;
         public event EventHandler<Command> CommandGot
         {
@@ -24,7 +24,14 @@ namespace AIChatServer
             add { DisconnectedHandler = value; }
             remove { DisconnectedHandler = null; }
         }
-        public Connection(WebSocket webSocket)
+        public Connection(int id, WebSocket webSocket)
+        {
+            Console.WriteLine("Create Connection");
+            this.Id = id;
+            this.webSocket = webSocket;
+            Task.Run(() => { HandleClient(webSocket); });
+        }
+        public Connection(string device, WebSocket webSocket)
         {
             Console.WriteLine("Create Connection");
             this.webSocket = webSocket;
@@ -33,7 +40,6 @@ namespace AIChatServer
         private async void HandleClient(WebSocket webSocket)
         {
             byte[] buffer;
-          //  Task.Delay(100);
             while (webSocket.State == WebSocketState.Open)
             {
                 buffer = new byte[1024];
@@ -49,7 +55,6 @@ namespace AIChatServer
                     {
                         Console.WriteLine(Encoding.UTF8.GetString(buffer));
                         Command command = JsonHelper.Deserialize<Command>(buffer);
-
                         command.SetSender(this);
                         CommandGotHandler.Invoke(this, command);
                     }

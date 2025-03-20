@@ -4,6 +4,7 @@ using System.Configuration;
 using System.Data;
 using System.Security.Cryptography;
 using System.Text;
+using System.Transactions;
 using MySql.Data.MySqlClient;
 using Newtonsoft.Json;
 
@@ -189,7 +190,7 @@ namespace AIChatServer
             }
         }
 
-        public static int? AddUser(User user)
+        public static int? AddUser(User user, int connectionId)
         {
             using (var connection = GetConnection())
             {
@@ -200,6 +201,8 @@ namespace AIChatServer
                         int userId = InsertUser(user, connection, transaction);
                         InsertUserData(user.UserData, userId, connection, transaction);
                         int preferenceId = InsertPreference(user.Preference, userId, connection, transaction);
+                        UpdateConnection(connectionId, userId, connection, transaction);
+                        
                         transaction.Commit();
                         return userId;
                     }
@@ -270,6 +273,79 @@ namespace AIChatServer
                 }
 
                     return Convert.ToInt32(command.ExecuteScalar());
+            }
+        }
+        private static int UpdateConnection(int id, int userId, MySqlConnection connection, MySqlTransaction transaction)
+        {
+            string addConnectionQuery = @"
+            UPDATE connections SET UserId = @UserId WHERE Id = @Id;";
+            using (var command = new MySqlCommand(addConnectionQuery, connection, transaction))
+            {
+                command.Parameters.AddWithValue("@UserId", userId);
+                command.Parameters.AddWithValue("@Id", id);
+                int connectionId = Convert.ToInt32(command.ExecuteNonQuery());
+                return connectionId;
+            }
+        }
+
+        public static int AddConnection(string device)
+        {
+            string addConnectionQuery = @"
+            INSERT INTO Connections (Device) 
+            VALUES (@Device);
+            SELECT LAST_INSERT_ID();";
+
+            using (var connection = GetConnection())
+            {
+                using (var command = new MySqlCommand(addConnectionQuery, connection))
+                {
+                    command.Parameters.AddWithValue("@Device", device);
+                    return Convert.ToInt32(command.ExecuteScalar());
+                }
+            }
+        }
+        public static void UpdateConnection(int connectionId, int userId)
+        {
+            string addConnectionQuery = "UPDATE connections SET UserId = @UserId WHERE Id = @Id;";
+            using (var connection = GetConnection())
+            {
+                using (var command = new MySqlCommand(addConnectionQuery, connection))
+                {
+                    command.Parameters.AddWithValue("@UserId", userId);
+                    command.Parameters.AddWithValue("@Id", connectionId);
+                    command.ExecuteNonQuery();
+                }
+            }
+        }
+
+        public static bool VerifyConnection(int id, int userId, string device)
+        {
+            string verifyCommand = @"SELECT COUNT(*) FROM connections WHERE Id = @Id && UserId = @UserId && Device = @Device;";
+            using (var connection = GetConnection())
+            {
+                using (var command = new MySqlCommand(verifyCommand, connection))
+                {
+                    command.Parameters.AddWithValue("@Id", id);
+                    command.Parameters.AddWithValue("@UserId", userId);
+                    command.Parameters.AddWithValue("@Device", device);
+                    int count = Convert.ToInt32(command.ExecuteScalar());
+                    return count == 1;
+                }
+            }
+        }
+
+        public static void DeleteUnknownConnection(int id)
+        {
+            string updatePreferenceQuery = @"
+            DELETE FROM connections WHERE Id = @Id;";
+
+            using (var connection = GetConnection())
+            {
+                using (var command = new MySqlCommand(updatePreferenceQuery, connection))
+                {
+                    command.Parameters.AddWithValue("@Id", id);
+                    command.ExecuteNonQuery();
+                }
             }
         }
 
@@ -477,25 +553,7 @@ namespace AIChatServer
             return messages;
         }
 
-        public static bool AddConnection(int userId, string device, string token)
-        {
-            string addConnectionQuery = @"
-            INSERT INTO Connections (UserId, Device, Token) 
-            VALUES (@UserId, @Device, @Token)";
-
-            using (var connection = GetConnection())
-            {
-                using (var command = new MySqlCommand(addConnectionQuery, connection))
-                {
-                    command.Parameters.AddWithValue("@UserId", userId);
-                    command.Parameters.AddWithValue("@Device", device);
-                    command.Parameters.AddWithValue("@Token", token);
-
-                    int result = command.ExecuteNonQuery();
-                    return result > 0;
-                }
-            }
-        }
+        
 
         public static bool RemoveConnection(int id)
         {
@@ -629,5 +687,6 @@ namespace AIChatServer
                 }
             }
         }
+        
     }
 }

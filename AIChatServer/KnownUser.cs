@@ -9,27 +9,16 @@ namespace AIChatServer
 {
     public class KnownUser : ServerUser
     {
-        private User user;
         public event EventHandler<Command> CommandGot;
-
-        public int GetUserId()
-        {
-            return user.Id;
-        }
         public KnownUser(User user, Connection connection)
         {
-            this.user = user;
+            User = user;
             AddConnection(connection);
             base.GotCommand += OnGotCommand;
-            Disconnected += OnDisconnect;
         }
         private void OnGotCommand(object sender, Command command)
         {
-            CommandGot.Invoke(sender, command);
-        }
-        private void OnDisconnect(object seder, EventArgs e)
-        {
-
+            CommandGot.Invoke(this, command);
         }
     }
 }
