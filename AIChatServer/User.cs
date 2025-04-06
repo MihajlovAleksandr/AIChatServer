@@ -27,6 +27,12 @@ namespace AIChatServer
             Password = password;
             
         }
+        public override bool Equals(object? obj)
+        {
+            User other = obj as User;
+            if (other == null) return false;
+            return Id.Equals(other.Id);
+        }
         public override string ToString()
         {
             return $"User {{{Id}}}:\n{Email}\n{Premium}/{Points}\n{UserData}\n{Preference}";

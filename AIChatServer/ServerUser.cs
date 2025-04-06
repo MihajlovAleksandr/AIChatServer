@@ -21,7 +21,7 @@ namespace AIChatServer
         }
         ~ServerUser()
         {
-            Console.WriteLine($"\n\n\nDestroy: {GetType()}\n\n\n");
+            Console.WriteLine($"Destroy: {GetType()}");
         }
         
         protected ServerUser(ServerUser user)
@@ -56,13 +56,21 @@ namespace AIChatServer
             connections.Remove(connection);
             if (connections.Count == 0) Disconnected.Invoke(this, new EventArgs());
         }
-        public void SendCommandForAllConnections(Command command)
+        public void SendCommand(Command command)
         {
-            Console.WriteLine($"Sendinng command to client: {JsonHelper.Serialize(command)}");
-            byte[] bytes = JsonHelper.SerializeToBytes(command);
             foreach (var connection in connections)
             {
-                connection.SendCommand(bytes);
+                SendCommand(connection, command);
+            }
+        }
+        public void SendCommand(int connectionId, Command command)
+        {
+            for(int i = 0; i < connections.Count; i++)
+            {
+                if (connections[i].Id == connectionId)
+                {
+                    SendCommand(connections[i], command);
+                }
             }
         }
         public static void SendCommand(Connection connection, Command command)
@@ -70,6 +78,5 @@ namespace AIChatServer
             Console.WriteLine($"Sendinng command to client: {JsonHelper.Serialize(command)}");
             connection.SendCommand(JsonHelper.SerializeToBytes(command));
         }
-
     }
 }

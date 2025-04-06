@@ -7,7 +7,7 @@ namespace AIChatServer
     {
         static void Main(string[] args)
         {
-            UserManager userManager = new UserManager();
+            MainManager mainManager = new MainManager();
             Console.ReadLine();
         }
     }

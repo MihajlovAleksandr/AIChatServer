@@ -14,7 +14,9 @@ namespace AIChatServer
     public class UserManager
     {
         private int id = 0;
-        ConnectionManager connectionManager;
+        private readonly ConnectionManager connectionManager;
+        public event EventHandler<Command> CommandGot;
+        
         public UserManager()
         {
             connectionManager = new ConnectionManager();
@@ -23,7 +25,7 @@ namespace AIChatServer
         private async void GetNewConnections()
         {
             HttpListener httpListener = new HttpListener();
-            httpListener.Prefixes.Add("https://192.168.100.7:8888/");
+            httpListener.Prefixes.Add("https://192.168.100.15:8888/");
             try
             {
                 httpListener.Start();
@@ -111,7 +113,9 @@ namespace AIChatServer
                     {
                         knownUser.CommandGot += KnowUserGotCommand;
                         knownUser.Disconnected += DissconnectUser;
-                        connectionManager.ConnectUserWithoutLock(knownUser.User.Id, knownUser);
+                        Command command = new Command("LoginIn");
+                        command.AddData("userId", knownUser.User.Id);
+                        ServerUser.SendCommand(connection, command);
                         Console.WriteLine("I know u...");
                     }
                 }
@@ -129,7 +133,7 @@ namespace AIChatServer
             UnknownUser user = new UnknownUser(connection, id);
             user.UserChanged += KnowUser;
             user.Disconnected += DissconnectUser;
-            user.SendCommandForAllConnections(new Command("LogOut"));
+            user.SendCommand(new Command("LogOut"));
             return user;
         }
 
@@ -154,18 +158,25 @@ namespace AIChatServer
 
         private void KnowUserGotCommand(object sender, Command command)
         {
-            Console.WriteLine($"{sender}: {command}");
-            Message message = command.GetData<Message>("message");
-            Console.WriteLine($"Got message: {message}");
-            command = new Command("SendMessage");
-            command.AddData("message", message);
-            KnownUser knownUser = (KnownUser)sender;
-            knownUser.SendCommandForAllConnections(command);
+            CommandGot.Invoke(sender, command);
         }
         private void DissconnectUser(object sender, EventArgs eventArgs)
         {
             ServerUser su = (ServerUser)sender;
             connectionManager.DisconnectUser(su.User.Id);
+
+        }
+        public void SendCommand(int[] users, Command command)
+        {
+            KnownUser[] connectedUsers = connectionManager.GetConnectedUsers(users);
+            foreach(KnownUser user in connectedUsers)
+            {
+                user.SendCommand(command);
+            }
+        }
+        public User[] GetUsersById(int[] users)
+        {
+             return connectionManager.GetConnectedUsers(users).Select(el => el.User).ToArray();
         }
     }
 }

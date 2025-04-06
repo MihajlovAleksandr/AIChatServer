@@ -10,19 +10,27 @@ namespace AIChatServer
     using System;
     using Newtonsoft.Json;
     using System.Runtime.Serialization;
+    using System.Text.Json.Serialization;
 
     public class Message
     {
+        [JsonProperty("id")]
         public int Id { get; set; }
+        [JsonProperty("chat")]
+
         public int Chat { get; set; }
+        [JsonProperty("sender")]
+
         public int Sender { get; set; }
+        [JsonProperty("text")]
+
         public string Text { get; set; }
 
-        [JsonProperty(DefaultValueHandling = DefaultValueHandling.Ignore)]
+        [JsonProperty("time", DefaultValueHandling = DefaultValueHandling.Ignore)]
         public DateTime? Time { get; set; }
 
-        [JsonProperty(DefaultValueHandling = DefaultValueHandling.Ignore)]
-        public DateTime LastUpdate { get; set; }
+        [JsonProperty("lastUpdate", DefaultValueHandling = DefaultValueHandling.Ignore)]
+        public DateTime? LastUpdate { get; set; }
 
         [OnDeserialized]
         private void OnDeserialized(StreamingContext context)

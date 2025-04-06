@@ -459,30 +459,59 @@ namespace AIChatServer
             }
         }
 
-        public static int CreateChat(List<int> users)
+        public static Chat CreateChat(int[] users)
         {
-            int chatId = CreateChat();
+            Chat chat = CreateChat();
+            chat.Users = users;
             foreach (int userId in users)
-                AddUserToChat(userId, chatId);
-            return chatId;
+                AddUserToChat(userId, chat.Id);
+            return chat;
         }
 
-        public static int CreateChat()
+        public static void EndChat(int chatId)
+        {
+            string endChatQuery = "UPDATE Chats SET EndTime = NOW() WHERE Id = @Id";
+            using (var connection = GetConnection())
+            {
+                using (var command = new MySqlCommand(endChatQuery, connection))
+                {
+                    command.Parameters.AddWithValue("@Id", chatId);
+                    int result = command.ExecuteNonQuery();
+                }
+            }
+        }
+
+        private static Chat CreateChat()
         {
             string createChatQuery = @"
                 INSERT INTO Chats () VALUES ();
-                SELECT LAST_INSERT_ID();";
+                SELECT * FROM Chats
+                ORDER BY id DESC
+                LIMIT 1;";
 
             using (var connection = GetConnection())
             {
                 using (var command = new MySqlCommand(createChatQuery, connection))
                 {
-                    return Convert.ToInt32(command.ExecuteScalar());
+                    using (var reader = command.ExecuteReader())
+                    {
+                        if (reader.Read())
+                        {
+                            Chat chat = new Chat()
+                            {
+                                Id = reader.GetInt32("Id"),
+                                CreationTime = reader.GetDateTime("CreationTime")
+                            };
+                            return chat;
+                        }
+                    }
                 }
             }
+            throw new Exception("Can't read chat from DB");
         }
 
-        public static bool AddUserToChat(int userId, int chatId)
+
+        private static bool AddUserToChat(int userId, int chatId)
         {
             string addUserToChatQuery = @"
             INSERT INTO UsersChats (UserId, ChatId) 
@@ -501,11 +530,12 @@ namespace AIChatServer
             }
         }
 
-        public static bool SendMessage(Message message)
+        public static Message SendMessage(Message message)
         {
             string sendMessageQuery = @"
-            INSERT INTO Messages (ChatId, UserId, Text) 
-            VALUES (@ChatId, @UserId, @Text)";
+    INSERT INTO Messages (ChatId, UserId, Text) 
+    VALUES (@ChatId, @UserId, @Text);
+    SELECT LAST_INSERT_ID();";
 
             using (var connection = GetConnection())
             {
@@ -515,8 +545,40 @@ namespace AIChatServer
                     command.Parameters.AddWithValue("@UserId", message.Sender);
                     command.Parameters.AddWithValue("@Text", message.Text);
 
-                    int result = command.ExecuteNonQuery();
-                    return result > 0;
+                    // Получаем ID вставленной записи
+                    var insertedId = Convert.ToInt32(command.ExecuteScalar());
+
+                    if (insertedId > 0)
+                    {
+                        // Получаем полные данные о сообщении
+                        string getMessageQuery = @"
+                SELECT Id, ChatId, UserId, Text, Time, LastUpdate 
+                FROM Messages 
+                WHERE Id = @Id";
+
+                        using (var getCommand = new MySqlCommand(getMessageQuery, connection))
+                        {
+                            getCommand.Parameters.AddWithValue("@Id", insertedId);
+
+                            using (var reader = getCommand.ExecuteReader())
+                            {
+                                if (reader.Read())
+                                {
+                                    return new Message
+                                    {
+                                        Id = reader.GetInt32("Id"),
+                                        Chat = reader.GetInt32("ChatId"),
+                                        Sender = reader.GetInt32("UserId"),
+                                        Text = reader.GetString("Text"),
+                                        Time = reader.GetDateTime("Time"),
+                                        LastUpdate = reader.GetDateTime("LastUpdate")
+                                    };
+                                }
+                            }
+                        }
+                    }
+
+                    return null;
                 }
             }
         }

@@ -88,6 +88,21 @@ public class ConnectionManager
             }
         }
         return null;
+    }
+    public KnownUser[] GetConnectedUsers(int[] users)
+    {
+        lock (syncObj)
+        {
+            List<KnownUser> knownUsers = [];
+            for (int i = 0; i < users.Length; i++)
+            {
+                if (this.users.TryGetValue(users[i], out ServerUser? serverUser))
+                {
+                    knownUsers.Add((KnownUser)serverUser);
+                }
 
+            }
+            return knownUsers.ToArray();
+        }
     }
 }

@@ -1,45 +1,83 @@
-﻿namespace AIChatServer
+﻿using System.ComponentModel;
+using ZstdSharp.Unsafe;
+
+namespace AIChatServer
 {
     public class ChatManager
     {
         private Dictionary<int,Chat> chatList;
-        private readonly object syncObj = new object();
+        private List<User> usersWithoutChat;
+        public Action<Chat> OnChatCreated;
+        public Action<Chat> OnChatEnded;
+        private readonly object syncObjChats = new object();
+        private readonly object syncObjUsers = new object();
+
         public ChatManager()
         {
             chatList = new Dictionary<int,Chat>();
+            usersWithoutChat = new List<User>();
         }
-        public int[] GetUsers(int user)
+        public int[] GetUsersInChat(int chat)
         {
-            lock (syncObj)
+            lock (syncObjChats)
             {
-                return GetUsersDanger(user);
+                return chatList[chat].Users;
             }
         }
 
-        public void DeleteChat(int user)
+        public void EndChat(int chat)
         {
-            lock (syncObj)
+            lock (syncObjChats)
             {
-                int[] users = GetUsersDanger(user);
-                foreach (int userId in users)
-                {
-                    chatList.Remove(userId);
-                }
+                DB.EndChat(chat);
+                OnChatEnded.Invoke(chatList[chat]);
+                chatList.Remove(chat);
             }
         }
-        public void AddChat(Chat chat)
+        public void SearchChat(User user)
         {
-            lock (syncObj)
-            {
-                foreach (int user in chat.Users)
+            CreateChat([user]);
+            return;
+            lock (syncObjUsers) {
+                for (int i =0;i <usersWithoutChat.Count;i++)
                 {
-                    chatList.Add(user, chat);
+                    if (user.UserData.IsFits(usersWithoutChat[i].Preference))
+                    {
+                        if (usersWithoutChat[i].UserData.IsFits(user.Preference))
+                        {
+                            CreateChat([user, usersWithoutChat[i]]);  
+                            return;
+                        }
+                    }
                 }
+                usersWithoutChat.Add(user);
             }
         }
-        private int[] GetUsersDanger(int user)
+        private void CreateChat(User[] users)
         {
-            return chatList[user].Users; 
+            //usersWithoutChat.Remove(users[1]);
+            //Chat chat = DB.CreateChat([users[0].Id, users[1].Id]);
+            Chat chat = DB.CreateChat([users[0].Id]);
+
+            lock (syncObjChats)
+            {
+                chatList.Add(chat.Id, chat);
+            }
+            OnChatCreated.Invoke(chat);
+        }
+        public void StopSearchingChat(int userId)
+        {
+            lock (syncObjUsers)
+            {
+                for (int i = 0; i < usersWithoutChat.Count; i++)
+                {
+                    if (usersWithoutChat[i].Id == userId)
+                    {
+                        usersWithoutChat.RemoveAt(i); 
+                        return;
+                    }
+                }
+            }
         }
     }
 }
