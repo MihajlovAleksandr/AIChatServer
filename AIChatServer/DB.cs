@@ -318,9 +318,12 @@ namespace AIChatServer
             }
         }
 
-        public static bool VerifyConnection(int id, int userId, string device)
+        public static bool VerifyConnection(int id, int userId, string device, out DateTime lastOnline)
         {
-            string verifyCommand = @"SELECT COUNT(*) FROM connections WHERE Id = @Id && UserId = @UserId && Device = @Device;";
+            string verifyCommand = @"SELECT COUNT(*), LastOnline 
+                            FROM connections 
+                            WHERE Id = @Id AND UserId = @UserId AND Device = @Device;";
+
             using (var connection = GetConnection())
             {
                 using (var command = new MySqlCommand(verifyCommand, connection))
@@ -328,10 +331,20 @@ namespace AIChatServer
                     command.Parameters.AddWithValue("@Id", id);
                     command.Parameters.AddWithValue("@UserId", userId);
                     command.Parameters.AddWithValue("@Device", device);
-                    int count = Convert.ToInt32(command.ExecuteScalar());
-                    return count == 1;
+
+                    using (var reader = command.ExecuteReader())
+                    {
+                        if (reader.Read())
+                        {
+                            int count = reader.GetInt32(0);
+                            lastOnline = reader.IsDBNull(1)? DateTime.MinValue : reader.GetDateTime(1);
+                            return count == 1;
+                        }
+                    }
                 }
             }
+            lastOnline = DateTime.MinValue;
+            return false;
         }
 
         public static void DeleteUnknownConnection(int id)
@@ -468,17 +481,35 @@ namespace AIChatServer
             return chat;
         }
 
-        public static void EndChat(int chatId)
+        public static DateTime EndChat(int chatId)
         {
             string endChatQuery = "UPDATE Chats SET EndTime = NOW() WHERE Id = @Id";
+
+            string getChatQuery = "SELECT EndTime FROM Chats WHERE Id = @Id";
+
             using (var connection = GetConnection())
             {
-                using (var command = new MySqlCommand(endChatQuery, connection))
+                using (var updateCommand = new MySqlCommand(endChatQuery, connection))
                 {
-                    command.Parameters.AddWithValue("@Id", chatId);
-                    int result = command.ExecuteNonQuery();
+                    updateCommand.Parameters.AddWithValue("@Id", chatId);
+                    updateCommand.ExecuteNonQuery();
+                }
+
+                using (var selectCommand = new MySqlCommand(getChatQuery, connection))
+                {
+                    selectCommand.Parameters.AddWithValue("@Id", chatId);
+                    using (var reader = selectCommand.ExecuteReader())
+                    {
+                        if (reader.Read())
+                        {
+                            return reader.GetDateTime("EndTime");
+                            
+                        }
+                    }
                 }
             }
+
+            throw new Exception($"Чат с ID {chatId} не найден после обновления");
         }
 
         private static Chat CreateChat()
@@ -615,8 +646,39 @@ namespace AIChatServer
             return messages;
         }
 
-        
+        public static Dictionary<int, List<int>> GetUserChatsDictionary(int targetUserId)
+        {
+            var userChats = new Dictionary<int, List<int>>();
+            string getUserChatsQuery = @"
+SELECT u1.UserId, u1.ChatId
+FROM aichat.userschats u1
+JOIN aichat.userschats u2 ON u1.ChatId = u2.ChatId
+WHERE u2.UserId = @targetUserId AND u1.UserId != @targetUserId";
 
+            using (var connection = GetConnection())
+            {
+                using (var command = new MySqlCommand(getUserChatsQuery, connection))
+                {
+                    command.Parameters.AddWithValue("@targetUserId", targetUserId);
+
+                    using (var reader = command.ExecuteReader())
+                    {
+                        while (reader.Read())
+                        {
+                            int userId = reader.GetInt32("UserId");
+                            int chatId = reader.GetInt32("ChatId");
+
+                            if (!userChats.ContainsKey(userId))
+                            {
+                                userChats[userId] = new List<int>();
+                            }
+                            userChats[userId].Add(chatId);
+                        }
+                    }
+                }
+            }
+            return userChats;
+        }
         public static bool RemoveConnection(int id)
         {
             string removeConnectionQuery = @"
@@ -731,24 +793,215 @@ namespace AIChatServer
                 }
             }
         }
-        public static bool SetLastOnline(int userId)
+        public static bool SetLastOnline(int connectionId, bool isOnline)
         {
-            string updatePreferenceQuery = @"
+            string updatePreferenceQuery = (isOnline) ? @"
+            UPDATE Connections
+            SET LastOnline = null
+            WHERE Id = @ConnectionId"
+            : @"
             UPDATE Connections
             SET LastOnline = CURRENT_TIMESTAMP
-            WHERE UserId = @UserId";
+            WHERE Id = @ConnectionId";
 
             using (var connection = GetConnection())
             {
                 using (var command = new MySqlCommand(updatePreferenceQuery, connection))
                 {
-                    command.Parameters.AddWithValue("@UserId", userId);
+                    command.Parameters.AddWithValue("@ConnectionId", connectionId);
                     int result = command.ExecuteNonQuery();
 
                     return result > 0;
                 }
             }
         }
-        
+        public static (List<Chat>, List<Chat>) GetNewChats(int userId, DateTime lastOnline)
+        {
+            var chats = (new List<Chat>(), new List<Chat>());
+            string getMessagesQuery = @" SELECT c.Id, c.CreationTime, c.EndTime
+                                        FROM Chats c
+                                        JOIN UsersChats uc ON c.Id = uc.ChatId
+                                        WHERE uc.UserId = @UserId 
+                                        AND (c.CreationTime > @LastOnline OR 
+                                             (c.EndTime IS NOT NULL AND c.EndTime > @LastOnline));";
+
+            using (var connection = GetConnection())
+            {
+                using (var command = new MySqlCommand(getMessagesQuery, connection))
+                {
+                    command.Parameters.AddWithValue("@UserId", userId);
+                    command.Parameters.AddWithValue("@LastOnline", lastOnline);
+
+                    using (var reader = command.ExecuteReader())
+                    {
+                        while (reader.Read())
+                        {
+                            Chat chat; 
+                            chat = new Chat()
+                            {
+                                Id = reader.GetInt32("Id"),
+                                CreationTime = reader.GetDateTime("CreationTime"),
+                                EndTime = reader.IsDBNull("EndTime")? null: reader.GetDateTime("EndTime")
+                            };
+                            if (chat.CreationTime>lastOnline)
+                            {
+                                chats.Item1.Add(chat);
+                            }
+                            else
+                            {
+                                chats.Item2.Add(chat);
+                            }
+                        }
+                    }
+                }
+            }
+            return chats;
+        }
+
+        public static (List<Message>, List<Message>) GetNewMessages(int userId, DateTime lastOnline)
+        {
+            var messages = (new List<Message>(), new List<Message>());
+            string getMessagesQuery = @" SELECT m.*
+                                            FROM Messages m
+                                            JOIN UsersChats uc ON m.ChatId = uc.ChatId
+                                            WHERE uc.UserId = @UserId
+                                            AND (m.LastUpdate > @LastOnline);";
+
+            using (var connection = GetConnection())
+            {
+                using (var command = new MySqlCommand(getMessagesQuery, connection))
+                {
+                    command.Parameters.AddWithValue("@UserId", userId);
+                    command.Parameters.AddWithValue("@LastOnline", lastOnline);
+
+                    using (var reader = command.ExecuteReader())
+                    {
+                        while (reader.Read())
+                        {
+                            var message = new Message
+                            {
+                                Id = reader.GetInt32("Id"),
+                                Chat = reader.GetInt32("ChatId"),
+                                Sender = reader.GetInt32("UserId"),
+                                Text = reader.GetString("Text"),
+                                Time = reader.GetDateTime("Time"),
+                                LastUpdate = reader.GetDateTime("LastUpdate")
+                            };
+                            if (message.Time > lastOnline)
+                                messages.Item1.Add(message);
+                            else
+                                messages.Item2.Add(message);
+                        }
+                    }
+                }
+            }
+            return messages;
+        }
+        public static (List<int>, List<UserData>, List<bool>) LoadUsers(int chatId)
+        {
+            (List<int>, List<UserData>, List<bool>) data = (new List<int>(), new List<UserData>(), new List<bool>());
+            string isOnlineQuery = @"
+                SELECT 
+                    ud.*,
+                    CASE WHEN EXISTS (
+                        SELECT 1 FROM connections 
+                        WHERE UserId = ud.UserId AND LastOnline IS NULL
+                    ) THEN 1 ELSE 0 END AS IsOnline
+                FROM
+                    userdata ud
+                        JOIN
+                    userschats uc ON ud.UserId = uc.UserId
+                        JOIN
+                    connections c ON c.UserId = uc.UserId
+                WHERE
+                    uc.ChatId = @ChatId";
+
+            using (var connection = GetConnection())
+            {
+                using (var command = new MySqlCommand(isOnlineQuery, connection))
+                {
+                    command.Parameters.AddWithValue("@ChatId", chatId);
+
+                    using (var reader = command.ExecuteReader())
+                    {
+                        while (reader.Read())
+                        {
+                            data.Item1.Add(reader.GetInt32("UserId"));
+                            data.Item2.Add(new UserData()
+                            {
+                                Id = reader.GetInt32("Id"),
+                                Name = reader.GetString("Name"),
+                                Gender = reader.GetChar("Gender"),
+                                Age = reader.GetInt32("Age")
+                            });
+                            data.Item3.Add(reader.GetBoolean("IsOnline"));
+
+                        }
+                    }
+                }
+            }
+            return data;
+        }
+        public static Dictionary<int, Chat> GetChats()
+        {
+            var chats = new Dictionary<int, Chat>();
+
+            string getChatsQuery = "SELECT * FROM Chats WHERE EndTime IS NULL";
+            string getUserChatsQuery = "SELECT ChatId, UserId FROM userschats WHERE ChatId = @ChatId";
+
+            using (var connection = GetConnection())
+            {
+                using (var transaction = connection.BeginTransaction())
+                {
+                    try
+                    {
+                        using (var getChatsCommand = new MySqlCommand(getChatsQuery, connection, transaction))
+                        {
+                            using (var reader = getChatsCommand.ExecuteReader())
+                            {
+                                while (reader.Read())
+                                {
+                                    var chat = new Chat
+                                    {
+                                        Id = reader.GetInt32("Id"),
+                                        CreationTime = reader.GetDateTime("CreationTime"),
+                                        Users = Array.Empty<int>()
+                                    };
+                                    chats.Add(chat.Id, chat);
+                                }
+                            }
+                        }
+                        using (var getUserChatsCommand = new MySqlCommand(getUserChatsQuery, connection, transaction))
+                        {
+                            getUserChatsCommand.Parameters.Add("@ChatId", MySqlDbType.Int32);
+
+                            foreach (var chat in chats.Values)
+                            {
+                                getUserChatsCommand.Parameters["@ChatId"].Value = chat.Id;
+
+                                var userIds = new List<int>();
+                                using (var reader = getUserChatsCommand.ExecuteReader())
+                                {
+                                    while (reader.Read())
+                                    {
+                                        userIds.Add(reader.GetInt32("UserId"));
+                                    }
+                                }
+
+                                chat.Users = userIds.ToArray();
+                            }
+                        }
+
+                        transaction.Commit();
+                        return chats;
+                    }
+                    catch
+                    {
+                        transaction.Rollback();
+                        throw;
+                    }
+                }
+            }
+        }
     }
 }

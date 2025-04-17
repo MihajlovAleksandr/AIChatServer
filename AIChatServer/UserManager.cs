@@ -16,16 +16,26 @@ namespace AIChatServer
         private int id = 0;
         private readonly ConnectionManager connectionManager;
         public event EventHandler<Command> CommandGot;
+        public event EventHandler<bool> OnConnectionEvent;
+
         
         public UserManager()
         {
             connectionManager = new ConnectionManager();
+            connectionManager.OnConnected += OnUserConnected;
             Task.Run(GetNewConnections);
+        }
+        private void OnUserConnected(object? sender, bool isNewUser)
+        {
+            if (isNewUser)
+            {
+                OnConnectionEvent.Invoke(sender, true);
+            }
         }
         private async void GetNewConnections()
         {
             HttpListener httpListener = new HttpListener();
-            httpListener.Prefixes.Add("https://192.168.100.15:8888/");
+            httpListener.Prefixes.Add("https://192.168.100.12:8888/");
             try
             {
                 httpListener.Start();
@@ -103,12 +113,12 @@ namespace AIChatServer
             var id = GetIdFromToken(token);
             Connection connection;
 
-            if (id.Item1 != 0 && DB.VerifyConnection(id.Item2, id.Item1, device))
+            if (id.Item1 != 0 && DB.VerifyConnection(id.Item2, id.Item1, device, out DateTime lastOnline))
             {
                 connection = new Connection(id.Item2, webSocketContext.WebSocket);
                 lock (connectionManager.syncObj)
                 {
-                    KnownUser knownUser = connectionManager.GetUserWithoutLock(id.Item1, connection);
+                    KnownUser? knownUser = connectionManager.GetUserWithoutLock(id.Item1, connection);
                     if (knownUser != null)
                     {
                         knownUser.CommandGot += KnowUserGotCommand;
@@ -116,6 +126,7 @@ namespace AIChatServer
                         Command command = new Command("LoginIn");
                         command.AddData("userId", knownUser.User.Id);
                         ServerUser.SendCommand(connection, command);
+                        ServerUser.SendCommand(connection, GetSyncDBCommand(id.Item1, lastOnline));
                         Console.WriteLine("I know u...");
                     }
                 }
@@ -143,7 +154,7 @@ namespace AIChatServer
             return id;
         }
 
-        private (int, int) GetIdFromToken(string token)
+        private static (int, int) GetIdFromToken(string token)
         {
             if (TokenManager.ValidateToken(token, out int userId, out int connectionId, out DateTime expirationTime))
             {
@@ -164,7 +175,7 @@ namespace AIChatServer
         {
             ServerUser su = (ServerUser)sender;
             connectionManager.DisconnectUser(su.User.Id);
-
+            OnConnectionEvent.Invoke(sender, false);
         }
         public void SendCommand(int[] users, Command command)
         {
@@ -177,6 +188,17 @@ namespace AIChatServer
         public User[] GetUsersById(int[] users)
         {
              return connectionManager.GetConnectedUsers(users).Select(el => el.User).ToArray();
+        }
+        public static Command GetSyncDBCommand(int userId, DateTime lastOnline)
+        {
+            var chats = DB.GetNewChats(userId, lastOnline);
+            var messages = DB.GetNewMessages(userId, lastOnline);
+            Command syncDBCommand = new Command("SyncDB");
+            syncDBCommand.AddData("newMessages", messages.Item1);
+            syncDBCommand.AddData("oldMessages", messages.Item2);
+            syncDBCommand.AddData("newChats", chats.Item1);
+            syncDBCommand.AddData("oldChats", chats.Item2);
+            return syncDBCommand;
         }
     }
 }

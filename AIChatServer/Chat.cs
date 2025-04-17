@@ -35,5 +35,9 @@ namespace AIChatServer
             if (other == null) return false;
             return Id.Equals(other.Id);
         }
+        public override string ToString()
+        {
+            return $"Chat #{Id}\n{CreationTime} - {EndTime}\n";
+        }
     }
 }

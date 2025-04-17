@@ -14,7 +14,7 @@ namespace AIChatServer
 
         public ChatManager()
         {
-            chatList = new Dictionary<int,Chat>();
+            chatList = DB.GetChats();
             usersWithoutChat = new List<User>();
         }
         public int[] GetUsersInChat(int chat)
@@ -25,19 +25,20 @@ namespace AIChatServer
             }
         }
 
-        public void EndChat(int chat)
+        public void EndChat(int chatId)
         {
             lock (syncObjChats)
             {
-                DB.EndChat(chat);
-                OnChatEnded.Invoke(chatList[chat]);
-                chatList.Remove(chat);
+                Chat chat = chatList[chatId];
+                chat.EndTime = DB.EndChat(chatId);
+                OnChatEnded.Invoke(chat);
+                chatList.Remove(chatId);
             }
         }
         public void SearchChat(User user)
         {
-            CreateChat([user]);
-            return;
+            //CreateChat([user]);
+            //return;
             lock (syncObjUsers) {
                 for (int i =0;i <usersWithoutChat.Count;i++)
                 {
@@ -55,9 +56,9 @@ namespace AIChatServer
         }
         private void CreateChat(User[] users)
         {
-            //usersWithoutChat.Remove(users[1]);
-            //Chat chat = DB.CreateChat([users[0].Id, users[1].Id]);
-            Chat chat = DB.CreateChat([users[0].Id]);
+            usersWithoutChat.Remove(users[1]);
+            Chat chat = DB.CreateChat([users[0].Id, users[1].Id]);
+            //Chat chat = DB.CreateChat([users[0].Id]);
 
             lock (syncObjChats)
             {

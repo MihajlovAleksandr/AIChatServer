@@ -39,6 +39,7 @@ namespace AIChatServer
             connection.CommandGot += OnCommandGot;
             connection.Disconnected += Disconnect;
             connections.Add(connection);
+            DB.SetLastOnline(connection.Id, true);
         }
         public void AddConnection(ServerUser user)
         {
@@ -52,6 +53,7 @@ namespace AIChatServer
         private void Disconnect(object? sender, EventArgs args)
         {
             if (sender is not Connection connection) return;
+            DB.SetLastOnline(connection.Id, false);
             connection.CommandGot -= GotCommand.Invoke;
             connections.Remove(connection);
             if (connections.Count == 0) Disconnected.Invoke(this, new EventArgs());

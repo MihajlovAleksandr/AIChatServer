@@ -17,7 +17,24 @@ namespace AIChatServer
             userManager.CommandGot += OnCommandGot;
             chatManager.OnChatCreated += OnChatCreated;
             chatManager.OnChatEnded += OnChatEnded;
+            userManager.OnConnectionEvent += OnConnectionEvents;
         }
+        private void OnConnectionEvents(object? sender, bool isOnline)
+        {
+            ServerUser serverUser = (ServerUser)sender;
+            foreach (var item in DB.GetUserChatsDictionary(serverUser.User.Id))
+            {
+                Command command = new Command("UserOnlineChanges");
+                command.AddData("userId", serverUser.User.Id);
+                command.AddData("chats", item.Value);
+                command.AddData("isOnline", isOnline);
+                userManager.SendCommand([item.Key], command);
+            }
+            
+        }
+        
+        
+
         private void OnCommandGot(object? sender, Command command)
         {
             KnownUser knownUser = (KnownUser)sender;
@@ -44,7 +61,13 @@ namespace AIChatServer
                 case "StopSearchingChat":
                     chatManager.StopSearchingChat(knownUser.User.Id);
                     break;
-
+                case "SyncDB":
+                    knownUser.SendCommand(UserManager.GetSyncDBCommand(knownUser.User.Id, DateTime.MinValue));
+                    break;
+                case "LoadUsersInChat":
+                    int chatId = command.GetData<int>("chatId");
+                    knownUser.SendCommand(GetLoadUsersInChatCommand(chatId));
+                    break;
             }
         }
         private void OnChatCreated(Chat chat)
@@ -59,7 +82,15 @@ namespace AIChatServer
             command.AddData("chat", chat);
             userManager.SendCommand(chat.Users, command);
         }
-        
+        private Command GetLoadUsersInChatCommand(int chatId)
+        {
+            Command command = new Command("LoadUsersInChat");
+            var data = DB.LoadUsers(chatId);
+            command.AddData("ids", data.Item1);
+            command.AddData("userData", data.Item2);
+            command.AddData("isOnline", data.Item3);
+            return command;
+        }
 
     }
 }
