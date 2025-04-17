@@ -902,19 +902,17 @@ WHERE u2.UserId = @targetUserId AND u1.UserId != @targetUserId";
             (List<int>, List<UserData>, List<bool>) data = (new List<int>(), new List<UserData>(), new List<bool>());
             string isOnlineQuery = @"
                 SELECT 
-                    ud.*,
-                    CASE WHEN EXISTS (
-                        SELECT 1 FROM connections 
-                        WHERE UserId = ud.UserId AND LastOnline IS NULL
-                    ) THEN 1 ELSE 0 END AS IsOnline
-                FROM
-                    userdata ud
-                        JOIN
-                    userschats uc ON ud.UserId = uc.UserId
-                        JOIN
-                    connections c ON c.UserId = uc.UserId
-                WHERE
-                    uc.ChatId = @ChatId";
+    ud.*,
+    CASE WHEN EXISTS (
+        SELECT 1 FROM connections 
+        WHERE UserId = ud.UserId AND LastOnline IS NULL
+    ) THEN 1 ELSE 0 END AS IsOnline
+FROM
+    userdata ud
+WHERE
+    ud.UserId IN (
+        SELECT UserId FROM userschats WHERE ChatId = @ChatId
+    )";
 
             using (var connection = GetConnection())
             {
