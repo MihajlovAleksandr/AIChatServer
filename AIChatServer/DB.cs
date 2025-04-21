@@ -646,38 +646,27 @@ namespace AIChatServer
             return messages;
         }
 
-        public static Dictionary<int, List<int>> GetUserChatsDictionary(int targetUserId)
+        public static int[] GetUsersInSameChats(int targetUserId)
         {
-            var userChats = new Dictionary<int, List<int>>();
-            string getUserChatsQuery = @"
-SELECT u1.UserId, u1.ChatId
-FROM aichat.userschats u1
-JOIN aichat.userschats u2 ON u1.ChatId = u2.ChatId
-WHERE u2.UserId = @targetUserId AND u1.UserId != @targetUserId";
+            var userIds = new List<int>();
 
-            using (var connection = GetConnection())
+            const string query = @"
+        SELECT DISTINCT u1.UserId
+        FROM aichat.userschats u1
+        JOIN aichat.userschats u2 ON u1.ChatId = u2.ChatId
+        WHERE u2.UserId = @targetUserId AND u1.UserId != @targetUserId";
+
+            using var connection = GetConnection();
+            using var command = new MySqlCommand(query, connection);
+            command.Parameters.AddWithValue("@targetUserId", targetUserId);
+            using var reader = command.ExecuteReader();
+
+            while (reader.Read())
             {
-                using (var command = new MySqlCommand(getUserChatsQuery, connection))
-                {
-                    command.Parameters.AddWithValue("@targetUserId", targetUserId);
-
-                    using (var reader = command.ExecuteReader())
-                    {
-                        while (reader.Read())
-                        {
-                            int userId = reader.GetInt32("UserId");
-                            int chatId = reader.GetInt32("ChatId");
-
-                            if (!userChats.ContainsKey(userId))
-                            {
-                                userChats[userId] = new List<int>();
-                            }
-                            userChats[userId].Add(chatId);
-                        }
-                    }
-                }
+                userIds.Add(reader.GetInt32(0));
             }
-            return userChats;
+
+            return userIds.ToArray();
         }
         public static bool RemoveConnection(int id)
         {
@@ -865,7 +854,8 @@ WHERE u2.UserId = @targetUserId AND u1.UserId != @targetUserId";
                                             FROM Messages m
                                             JOIN UsersChats uc ON m.ChatId = uc.ChatId
                                             WHERE uc.UserId = @UserId
-                                            AND (m.LastUpdate > @LastOnline);";
+                                            AND (m.LastUpdate > @LastOnline)
+                                            ORDER BY m.ChatId;";
 
             using (var connection = GetConnection())
             {

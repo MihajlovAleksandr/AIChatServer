@@ -22,15 +22,10 @@ namespace AIChatServer
         private void OnConnectionEvents(object? sender, bool isOnline)
         {
             ServerUser serverUser = (ServerUser)sender;
-            foreach (var item in DB.GetUserChatsDictionary(serverUser.User.Id))
-            {
-                Command command = new Command("UserOnlineChanges");
-                command.AddData("userId", serverUser.User.Id);
-                command.AddData("chats", item.Value);
-                command.AddData("isOnline", isOnline);
-                userManager.SendCommand([item.Key], command);
-            }
-            
+            Command command = new Command("UserOnlineChanges");
+            command.AddData("userId", serverUser.User.Id);
+            command.AddData("isOnline", isOnline);
+            userManager.SendCommand(DB.GetUsersInSameChats(serverUser.User.Id), command);
         }
         
         

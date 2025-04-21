@@ -89,7 +89,6 @@ namespace AIChatServer
             knownUser.Disconnected += DissconnectUser;
         }
 
-
         private async Task HandleClient(HttpListenerContext httpContext)
         {
             WebSocketContext webSocketContext = null;
@@ -144,7 +143,7 @@ namespace AIChatServer
             UnknownUser user = new UnknownUser(connection, id);
             user.UserChanged += KnowUser;
             user.Disconnected += DissconnectUser;
-            user.SendCommand(new Command("LogOut"));
+            user.SendCommand(new Command("Logout"));
             return user;
         }
 
@@ -169,7 +168,10 @@ namespace AIChatServer
 
         private void KnowUserGotCommand(object sender, Command command)
         {
-            CommandGot.Invoke(sender, command);
+            if (command.Operation != "Logout") 
+                CommandGot.Invoke(sender, command);
+            else
+                GetUnknownUser(command.Sender, GetUnknownUserId());
         }
         private void DissconnectUser(object sender, EventArgs eventArgs)
         {
@@ -194,7 +196,9 @@ namespace AIChatServer
             var chats = DB.GetNewChats(userId, lastOnline);
             var messages = DB.GetNewMessages(userId, lastOnline);
             Command syncDBCommand = new Command("SyncDB");
-            syncDBCommand.AddData("newMessages", messages.Item1);
+            syncDBCommand.AddData("newMessages", messages.Item1.GroupBy(m => m.Chat)
+            .SelectMany(g => g.OrderBy(m => m.Time))
+            .ToList());
             syncDBCommand.AddData("oldMessages", messages.Item2);
             syncDBCommand.AddData("newChats", chats.Item1);
             syncDBCommand.AddData("oldChats", chats.Item2);
