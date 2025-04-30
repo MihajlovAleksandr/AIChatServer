@@ -57,11 +57,86 @@ namespace AIChatServer
                     chatManager.StopSearchingChat(knownUser.User.Id);
                     break;
                 case "SyncDB":
-                    knownUser.SendCommand(UserManager.GetSyncDBCommand(knownUser.User.Id, DateTime.MinValue));
+                    ServerUser.SendCommand(command.Sender ,UserManager.GetSyncDBCommand(knownUser.User.Id, DateTime.MinValue));
                     break;
                 case "LoadUsersInChat":
                     int chatId = command.GetData<int>("chatId");
-                    knownUser.SendCommand(GetLoadUsersInChatCommand(chatId));
+                    ServerUser.SendCommand(command.Sender,GetLoadUsersInChatCommand(chatId));
+                    break;
+                case "GetSettingsInfo":
+                    Command getSettingsInfoCommand = new Command("GetSettingsInfo");
+                    getSettingsInfoCommand.AddData("email", knownUser.User.Email);
+                    getSettingsInfoCommand.AddData("userData", knownUser.User.UserData);
+                    getSettingsInfoCommand.AddData("preference", knownUser.User.Preference);
+                    getSettingsInfoCommand.AddData("devices", DB.GetConnectionCount(knownUser.User.Id));
+                    ServerUser.SendCommand(command.Sender, getSettingsInfoCommand);
+                    break;
+                case "UpdateUserData":
+                    UserData userData = command.GetData<UserData>("userData");
+                    if (DB.UpdateUserData(userData, knownUser.User.Id))
+                    {
+                        knownUser.User.UserData = userData;
+                        Command userDataCommand = new Command("UserDataUpdated");
+                        userDataCommand.AddData("userData", userData);
+                        knownUser.SendCommand(userDataCommand);
+                    }
+                    break;
+                case "UpdatePreference":
+                    Preference preference = command.GetData<Preference>("preference");
+                    if (DB.UpdatePreference(preference, knownUser.User.Id))
+                    {
+                        knownUser.User.Preference = preference;
+                        Command preferenceCommand = new Command("PreferenceUpdated");
+                        preferenceCommand.AddData("preference", preference);
+                        knownUser.SendCommand(preferenceCommand);
+                    }
+                    break;
+                case "DeleteConnection":
+                    int connectinId = command.GetData<int>("connectionId");
+                    if (connectinId == default) connectinId = command.Sender.Id;
+                    ConnectionInfo connectionInfo = DB.RemoveConnection(connectinId);
+                    if (connectionInfo!=null)
+                    {
+                        knownUser.SendCommand(connectinId, new Command("Logout"));
+                        Connection? connection = knownUser.RemoveConnection(connectinId);
+                        if (connection is not null)
+                            userManager.CreateUnknownUser(connection);
+                        else
+                            DB.DeleteUnknownConnection(connectinId);
+                        Command deleteCommand = new Command("DeleteConnection");
+                        deleteCommand.AddData("connectionInfo", connectionInfo);
+                        deleteCommand.AddData("count", DB.GetConnectionCount(connectionInfo.UserId));
+                        knownUser.SendCommand(deleteCommand);
+
+                    }
+                    break;
+                case "ChangePassword":
+                    if(DB.VerifyPassword(command.GetData<string>("currentPassword"), knownUser.User.Password))
+                    {
+                        string newPassword = DB.ChangePassword(knownUser.User.Id, command.GetData<string>("newPassword"));
+                        if (!String.IsNullOrEmpty(newPassword))
+                        {
+                            ServerUser.SendCommand(command.Sender, new Command("PasswordChanged"));
+                            knownUser.User.Password = newPassword;
+                        }
+                    }
+                    break;
+                case "GetDevices":
+                    var devicesList = DB.GetAllUserConnections(knownUser.User.Id);
+                    Command devicesCommand = new Command("GetDevices");
+                    devicesCommand.AddData("devices", devicesList);
+                    devicesCommand.AddData("currentConnectionId", command.Sender.Id);
+                    ServerUser.SendCommand(command.Sender, devicesCommand);
+                    break;
+                case "EntryTokenRead":
+                    string token = command.GetData<string>("token");
+                    if (TokenManager.ValidateEntryToken(token, out int userId))
+                    {
+                        if(!userManager.KnowUser(userId, knownUser.User))
+                        {
+                            knownUser.SendCommand(new Command("LoginInViaQRFailed"));
+                        }
+                    }
                     break;
             }
         }

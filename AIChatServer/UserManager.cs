@@ -72,23 +72,38 @@ namespace AIChatServer
             }
         }
 
-        private void KnowUser(object? sender, User e)
+        private void KnowUser(UnknownUser unknownUser)
         {
-            Connection? connection = sender as Connection ?? throw new ArgumentException("connection was not Connection, WHAT?!");
+            KnowUserWithoutReconnect(unknownUser);
+            KnownUser knownUser = new KnownUser(unknownUser);
+            if (connectionManager.ReconnectUser(unknownUser.Id, unknownUser.User.Id, knownUser))
+            {
+                knownUser.CommandGot += KnowUserGotCommand;
+                knownUser.Disconnected += DissconnectUser;
+            }
+        }
+        public bool KnowUser(int oldId, User user)
+        {
+            ServerUser? serverUser = connectionManager.ReconnectUser(oldId, user.Id);
+            if (serverUser is not UnknownUser unknownUser) return false;
+            unknownUser.SetUser(user);
+            KnowUserWithoutReconnect(unknownUser);
+            return true;
+
+        }
+        private static void KnowUserWithoutReconnect(UnknownUser unknownUser)
+        {
+            IUnknownUser user = unknownUser;
+            Connection connection = user.GetCurrentConnection();
             Command command = new Command("CreateToken");
-            command.AddData("token", TokenManager.GenerateToken(e.Id, connection.Id));
+            command.AddData("token", TokenManager.GenerateToken(unknownUser.User.Id, connection.Id));
             Console.WriteLine(connection.Id);
-            DB.UpdateConnection(connection.Id, e.Id);
+            DB.UpdateConnection(connection.Id, unknownUser.User.Id);
             ServerUser.SendCommand(connection, command);
             command = new Command("LoginIn");
-            command.AddData("userId", e.Id);
+            command.AddData("userId", unknownUser.User.Id);
             ServerUser.SendCommand(connection, command);
-            KnownUser knownUser = new KnownUser(e, connection);
-            connectionManager.ReconnectUser(id, e.Id, knownUser);
-            knownUser.CommandGot += KnowUserGotCommand;
-            knownUser.Disconnected += DissconnectUser;
         }
-
         private async Task HandleClient(HttpListenerContext httpContext)
         {
             WebSocketContext webSocketContext = null;
@@ -146,7 +161,14 @@ namespace AIChatServer
             user.SendCommand(new Command("Logout"));
             return user;
         }
-
+        public void CreateUnknownUser(Connection connection)
+        {
+            int userId = GetUnknownUserId();
+            UnknownUser user = new UnknownUser(connection, userId);
+            user.UserChanged += KnowUser;
+            user.Disconnected += DissconnectUser;
+            connectionManager.ConnectUser(userId, user);
+        }
         private int GetUnknownUserId()
         {
             id--;
@@ -168,10 +190,7 @@ namespace AIChatServer
 
         private void KnowUserGotCommand(object sender, Command command)
         {
-            if (command.Operation != "Logout") 
-                CommandGot.Invoke(sender, command);
-            else
-                GetUnknownUser(command.Sender, GetUnknownUserId());
+            CommandGot.Invoke(sender, command);
         }
         private void DissconnectUser(object sender, EventArgs eventArgs)
         {
@@ -186,10 +205,6 @@ namespace AIChatServer
             {
                 user.SendCommand(command);
             }
-        }
-        public User[] GetUsersById(int[] users)
-        {
-             return connectionManager.GetConnectedUsers(users).Select(el => el.User).ToArray();
         }
         public static Command GetSyncDBCommand(int userId, DateTime lastOnline)
         {

@@ -318,6 +318,72 @@ namespace AIChatServer
             }
         }
 
+        public static ConnectionInfo GetConnectionInfo(int connectionId, int defaultUserId = 0)
+        {
+            string getMessagesQuery = @"SELECT * FROM connections WHERE
+                                       Id = @ConnectionId";
+
+            using (var connection = GetConnection())
+            using (var getMessagesCommand = new MySqlCommand(getMessagesQuery, connection))
+            {
+                getMessagesCommand.Parameters.AddWithValue("@ConnectionId", connectionId);
+                using (var reader = getMessagesCommand.ExecuteReader())
+                {
+                    if (reader.Read())
+                    {
+                        return new ConnectionInfo(reader.GetInt32("Id"), reader.IsDBNull("UserId") ? defaultUserId : reader.GetInt32("UserId"), reader.GetString("Device"), reader.IsDBNull("LastOnline") ? null: reader.GetDateTime("LastOnline"));
+                    }
+                }
+            }
+            return null;
+        }
+
+        public static List<ConnectionInfo> GetAllUserConnections(int userId)
+        {
+            string getMessagesQuery = @"SELECT * FROM connections WHERE
+                                       UserId = @UserId";
+            List<ConnectionInfo> info = new List<ConnectionInfo>();
+            using (var connection = GetConnection())
+            using (var getMessagesCommand = new MySqlCommand(getMessagesQuery, connection))
+            {
+                getMessagesCommand.Parameters.AddWithValue("UserId", userId);
+                using (var reader = getMessagesCommand.ExecuteReader())
+                {
+                    while (reader.Read())
+                    {
+                        info.Add(new ConnectionInfo(reader.GetInt32("Id"), reader.GetInt32("UserId"), reader.GetString("Device"), reader.IsDBNull("LastOnline") ? null : reader.GetDateTime("LastOnline")));
+                    }
+                }
+            }
+            return info;
+        }
+
+        public static int[] GetConnectionCount(int userId)
+        {
+            string getMessagesQuery = @"SELECT 
+    COUNT(*) AS DevicesCount, 
+    CASE 
+        WHEN COUNT(*) = 0 THEN 0
+        ELSE SUM(CASE WHEN LastOnline IS NULL THEN 1 ELSE 0 END)
+    END AS OnlineDevicesCount
+FROM connections 
+WHERE UserId = @UserId";
+
+            using (var connection = GetConnection())
+            using (var getMessagesCommand = new MySqlCommand(getMessagesQuery, connection))
+            {
+                getMessagesCommand.Parameters.AddWithValue("@UserId", userId);
+                using (var reader = getMessagesCommand.ExecuteReader())
+                {
+                    if (reader.Read())
+                    {
+                        return [reader.GetInt32("DevicesCount"), reader.GetInt32("OnlineDevicesCount")];
+                    }
+                }
+            }
+            return [-1,-1];
+        }
+
         public static bool VerifyConnection(int id, int userId, string device, out DateTime lastOnline)
         {
             string verifyCommand = @"SELECT COUNT(*), LastOnline 
@@ -376,7 +442,7 @@ namespace AIChatServer
             }
         }
 
-        private static bool VerifyPassword(string password, string hashedPassword)
+        public static bool VerifyPassword(string password, string hashedPassword)
         {
             string hashedInput = HashPassword(password);
             return hashedInput == hashedPassword;
@@ -408,8 +474,9 @@ namespace AIChatServer
             return messages;
         }
 
-        public static bool ChangePassword(int userId, string password)
+        public static string ChangePassword(int userId, string password)
         {
+            password = HashPassword(password);
             string updateUserQuery = @"
             UPDATE Users 
             SET Password = @Password
@@ -419,13 +486,14 @@ namespace AIChatServer
             {
                 using (var command = new MySqlCommand(updateUserQuery, connection))
                 {
-                    command.Parameters.AddWithValue("@Password", HashPassword(password));
+                    command.Parameters.AddWithValue("@Password", password);
                     command.Parameters.AddWithValue("@Id", userId);
 
                     int result = command.ExecuteNonQuery();
-                    return result > 0;
+                    if (result > 0) return password;
                 }
             }
+            return String.Empty;
         }
 
         public static bool UpdateUserData(UserData userData, int userId)
@@ -540,7 +608,6 @@ namespace AIChatServer
             }
             throw new Exception("Can't read chat from DB");
         }
-
 
         private static bool AddUserToChat(int userId, int chatId)
         {
@@ -668,21 +735,48 @@ namespace AIChatServer
 
             return userIds.ToArray();
         }
-        public static bool RemoveConnection(int id)
+        public static ConnectionInfo RemoveConnection(int id)
         {
+            string getConnectionQuery = @"
+    SELECT Id, UserId, Device, LastOnline 
+    FROM Connections 
+    WHERE Id = @Id";
+            
             string removeConnectionQuery = @"
-            DELETE FROM Connections 
-            WHERE Id = @Id";
+    UPDATE Connections SET UserId = NULL 
+    WHERE Id = @Id";
 
             using (var connection = GetConnection())
             {
-                using (var command = new MySqlCommand(removeConnectionQuery, connection))
+                ConnectionInfo connectionInfo = null;
+                using (var command = new MySqlCommand(getConnectionQuery, connection))
                 {
                     command.Parameters.AddWithValue("@Id", id);
 
-                    int result = command.ExecuteNonQuery();
-                    return result > 0;
+                    using (var reader = command.ExecuteReader())
+                    {
+                        if (reader.Read())
+                        {
+                            connectionInfo = new ConnectionInfo(
+                                reader.GetInt32(0),
+                                reader.GetInt32(1),
+                                reader.GetString(2),
+                                reader.IsDBNull(3) ? (DateTime?)null : reader.GetDateTime(3)
+                            );
+                        }
+                    }
                 }
+
+                if (connectionInfo != null)
+                {
+                    using (var command = new MySqlCommand(removeConnectionQuery, connection))
+                    {
+                        command.Parameters.AddWithValue("@Id", id);
+                        command.ExecuteNonQuery();
+                    }
+                }
+
+                return connectionInfo;
             }
         }
 
@@ -790,7 +884,7 @@ namespace AIChatServer
             WHERE Id = @ConnectionId"
             : @"
             UPDATE Connections
-            SET LastOnline = CURRENT_TIMESTAMP
+            SET LastOnline = NOW()
             WHERE Id = @ConnectionId";
 
             using (var connection = GetConnection())

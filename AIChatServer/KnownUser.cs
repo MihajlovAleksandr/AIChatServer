@@ -10,12 +10,16 @@ namespace AIChatServer
     public class KnownUser : ServerUser
     {
         public event EventHandler<Command> CommandGot;
-        public KnownUser(User user, Connection connection)
+        public KnownUser(User user, Connection connection): base(connection)
         {
             User = user;
-            AddConnection(connection);
-            base.GotCommand += OnGotCommand;
+            GotCommand += OnGotCommand;
         }
+        public KnownUser(UnknownUser unknownUser): base(unknownUser)
+        {
+            GotCommand += OnGotCommand;
+        }
+
         private void OnGotCommand(object sender, Command command)
         {
             CommandGot.Invoke(this, command);

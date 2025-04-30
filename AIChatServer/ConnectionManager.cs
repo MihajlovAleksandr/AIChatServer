@@ -27,27 +27,46 @@ public class ConnectionManager
         }
     }
 
-    public void ReconnectUser(int oldId, int newId, KnownUser knownUser)
+    public bool ReconnectUser(int oldId, int newId, KnownUser knownUser)
     {
         lock (syncObj)
         {
-            ReconnectUserWithoutLock(oldId, newId, knownUser);
+            return ReconnectUserWithoutLock(oldId, newId, knownUser);
         }
     }
-
-
-  
+    public ServerUser? ReconnectUser(int oldId, int newId)
+    {
+        lock (syncObj)
+        {
+             return ReconnectUserWithoutLock(oldId, newId);
+        }
+    }
 
     public void DisconnectUserWithoutLock(int id)
     {
         users.Remove(id);
-
     }
 
-    public void ReconnectUserWithoutLock(int oldId, int newId, KnownUser knownUser)
+    public bool ReconnectUserWithoutLock(int oldId, int newId, KnownUser knownUser)
     {
         users.Remove(oldId);
-        ConnectUserWithoutLock(newId, knownUser);
+        return ConnectUserWithoutLock(newId, knownUser);
+    }
+    public ServerUser? ReconnectUserWithoutLock(int oldId, int newId)
+    {
+        if (users.Remove(oldId, out ServerUser serverUser))
+        {
+            if (users.ContainsKey(newId))
+            {
+                ConnectUserWithoutLock(newId, serverUser);
+            }
+            else Console.WriteLine($"User {{{newId}}} disconnected");
+        }
+        else
+        {
+            return null;
+        }
+        return serverUser;
     }
 
     public KnownUser? GetUserWithoutLock(int userId, Connection connection)
@@ -66,8 +85,9 @@ public class ConnectionManager
         if (users.TryGetValue(userId, out var existingUser))
         {
             var knownUser = (KnownUser)existingUser;
-            ConnectUserWithoutLock(userId, knownUser);
-            return knownUser;
+            var newUser = new KnownUser(existingUser.User, connection);
+            ConnectUserWithoutLock(userId, newUser);
+            return newUser;
         }
         else
         {
@@ -77,15 +97,15 @@ public class ConnectionManager
         }
     }
 
-    public void ConnectUserWithoutLock(int userId, ServerUser serverUser)
+    public bool ConnectUserWithoutLock(int userId, ServerUser serverUser)
     {
         bool isNewUser = users.TryAdd(userId, serverUser);
         if (!isNewUser)
         {
             users[userId].AddConnection(serverUser);
-            OnConnected.Invoke(serverUser, false);
         }
         OnConnected.Invoke(serverUser, isNewUser);
+        return isNewUser;
     }
 
     public KnownUser[] GetConnectedUsers(int[] users)

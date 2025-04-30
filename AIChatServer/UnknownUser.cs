@@ -4,12 +4,14 @@ namespace AIChatServer
 {
     public class UnknownUser : ServerUser
     {
-        public event EventHandler<User> UserChanged;
+        public event Action<UnknownUser> UserChanged;
         private VerificationCode verificationCode;
+        public int Id { get; private set; }
         public UnknownUser(Connection connection, int id) : base(connection)
         {
             User = new User();
             User.Id = id;
+            Id = id;
             base.GotCommand += (s, e) => GotCommand(e);
             Disconnected += (s, e) => { DB.DeleteUnknownConnection(connection.Id); };
         }
@@ -26,8 +28,16 @@ namespace AIChatServer
                 case "LoginIn":
                     string email = command.GetData<string>("email");
                     string password = command.GetData<string>("password");
-                    KnowUser(command.Sender, DB.LoginIn(email, password));
-                    break;
+                    User = DB.LoginIn(email, password);
+                    if (User != null)
+                    {
+                        KnowUser();
+                    }
+                    else
+                    {
+                        SendCommand(command.Sender, new Command("LoginInFailed"));
+                    }
+                        break;
                 case "Registration":
                     email = command.GetData<string>("email");
                     if (DB.IsEmailFree(email))
@@ -63,16 +73,17 @@ namespace AIChatServer
                     }
                     User.Id = (int)DB.AddUser(User, command.Sender.Id);
                     
-                    KnowUser(command.Sender, User);
+                    KnowUser();
                     break;
             }
         }
-        private void KnowUser(Connection connection,User user)
+        private void KnowUser()
         {
-            if (user != null)
-            {
-                UserChanged.Invoke(connection, user);
-            }
+            UserChanged.Invoke(this);
+        }
+        public void SetUser(User user)
+        {
+            User = user;
         }
     }
 }
