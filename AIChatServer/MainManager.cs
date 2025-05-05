@@ -18,6 +18,7 @@ namespace AIChatServer
             chatManager.OnChatCreated += OnChatCreated;
             chatManager.OnChatEnded += OnChatEnded;
             userManager.OnConnectionEvent += OnConnectionEvents;
+            userManager.IsChatSearching += chatManager.IsSearchingChat;
         }
         private void OnConnectionEvents(object? sender, bool isOnline)
         {
@@ -49,15 +50,22 @@ namespace AIChatServer
                     break;
                 case "SearchChat":
                     chatManager.SearchChat(knownUser.User);
+                    Command seachChatCommand = new Command("SearchChat");
+                    seachChatCommand.AddData("isChatSearching",true);
+                    knownUser.SendCommand(seachChatCommand);
                     break;
                 case "EndChat":
                     chatManager.EndChat(command.GetData<int>("chatId"));
                     break;
                 case "StopSearchingChat":
                     chatManager.StopSearchingChat(knownUser.User.Id);
+                    Command stopSeachChatCommand = new Command("SearchChat");
+                    stopSeachChatCommand.AddData("isChatSearching", false);
+                    knownUser.SendCommand(stopSeachChatCommand);
                     break;
                 case "SyncDB":
-                    ServerUser.SendCommand(command.Sender ,UserManager.GetSyncDBCommand(knownUser.User.Id, DateTime.MinValue));
+                    int syncDBUserId = knownUser.User.Id;
+                    ServerUser.SendCommand(command.Sender , userManager.GetSyncDBCommand(syncDBUserId, DateTime.MinValue));
                     break;
                 case "LoadUsersInChat":
                     int chatId = command.GetData<int>("chatId");
@@ -69,6 +77,7 @@ namespace AIChatServer
                     getSettingsInfoCommand.AddData("userData", knownUser.User.UserData);
                     getSettingsInfoCommand.AddData("preference", knownUser.User.Preference);
                     getSettingsInfoCommand.AddData("devices", DB.GetConnectionCount(knownUser.User.Id));
+                    getSettingsInfoCommand.AddData("emailNotifications", DB.GetNotifications(knownUser.User.Id));
                     ServerUser.SendCommand(command.Sender, getSettingsInfoCommand);
                     break;
                 case "UpdateUserData":
@@ -137,6 +146,19 @@ namespace AIChatServer
                             knownUser.SendCommand(new Command("LoginInViaQRFailed"));
                         }
                     }
+                    break;
+                case "UpdateNotifications":
+                    DB.UpdateNotifications(knownUser.User.Id, command.GetData<bool>("notifications"));
+                    break;
+                case "EmailNotifications":
+                    bool emailNotificationsEnabled = command.GetData<bool>("enabled");
+                    DB.UpdateNotifications(knownUser.User.Id, emailNotificationsEnabled);
+                    Command emailNotificationsCommand = new Command("EmailNotifications");
+                    emailNotificationsCommand.AddData("enabled", emailNotificationsEnabled);
+                    knownUser.SendCommand(emailNotificationsCommand);
+                    break;
+                case "MainActivityState":
+                    DB.SetLastOnline(command.Sender.Id, command.GetData<bool>("isOnline"));
                     break;
             }
         }

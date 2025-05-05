@@ -162,7 +162,7 @@ namespace AIChatServer
                 issuer: issuer,
                 audience: audience,
                 claims: claims,
-                expires: DateTime.UtcNow.AddMinutes(expireMi),
+                expires: DateTime.UtcNow.AddMinutes(expireMinutes),
                 signingCredentials: creds
             );
             var tokenHandler = new JwtSecurityTokenHandler();

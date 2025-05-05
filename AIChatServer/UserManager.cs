@@ -17,8 +17,9 @@ namespace AIChatServer
         private readonly ConnectionManager connectionManager;
         public event EventHandler<Command> CommandGot;
         public event EventHandler<bool> OnConnectionEvent;
+        public event Func<int, bool> IsChatSearching;
 
-        
+
         public UserManager()
         {
             connectionManager = new ConnectionManager();
@@ -35,7 +36,7 @@ namespace AIChatServer
         private async void GetNewConnections()
         {
             HttpListener httpListener = new HttpListener();
-            httpListener.Prefixes.Add("https://192.168.100.12:8888/");
+            httpListener.Prefixes.Add("https://192.168.100.17:8888/");
             try
             {
                 httpListener.Start();
@@ -127,7 +128,7 @@ namespace AIChatServer
             var id = GetIdFromToken(token);
             Connection connection;
 
-            if (id.Item1 != 0 && DB.VerifyConnection(id.Item2, id.Item1, device, out DateTime lastOnline))
+            if (id.Item1 != 0 && DB.VerifyConnection(id.Item2, id.Item1, device, out DateTime lastConnection))
             {
                 connection = new Connection(id.Item2, webSocketContext.WebSocket);
                 lock (connectionManager.syncObj)
@@ -140,7 +141,7 @@ namespace AIChatServer
                         Command command = new Command("LoginIn");
                         command.AddData("userId", knownUser.User.Id);
                         ServerUser.SendCommand(connection, command);
-                        ServerUser.SendCommand(connection, GetSyncDBCommand(id.Item1, lastOnline));
+                        ServerUser.SendCommand(connection, GetSyncDBCommand(id.Item1, lastConnection));
                         Console.WriteLine("I know u...");
                     }
                 }
@@ -206,7 +207,7 @@ namespace AIChatServer
                 user.SendCommand(command);
             }
         }
-        public static Command GetSyncDBCommand(int userId, DateTime lastOnline)
+        public Command GetSyncDBCommand(int userId, DateTime lastOnline)
         {
             var chats = DB.GetNewChats(userId, lastOnline);
             var messages = DB.GetNewMessages(userId, lastOnline);
@@ -217,6 +218,7 @@ namespace AIChatServer
             syncDBCommand.AddData("oldMessages", messages.Item2);
             syncDBCommand.AddData("newChats", chats.Item1);
             syncDBCommand.AddData("oldChats", chats.Item2);
+            syncDBCommand.AddData("isChatSearching", IsChatSearching.Invoke(userId));
             return syncDBCommand;
         }
     }

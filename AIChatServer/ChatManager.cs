@@ -80,5 +80,9 @@ namespace AIChatServer
                 }
             }
         }
+        public bool IsSearchingChat(int userId)
+        {
+            return usersWithoutChat.Exists(user => user.Id == userId);
+        }
     }
 }

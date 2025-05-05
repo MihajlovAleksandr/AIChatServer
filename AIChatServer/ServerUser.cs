@@ -38,7 +38,7 @@ namespace AIChatServer
         {
             connection.CommandGot += OnCommandGot;
             connection.Disconnected += Disconnect;
-            DB.SetLastOnline(connection.Id, true);
+            DB.SetLastConnection(connection.Id, true);
             if (GetType() == typeof(KnownUser))
             {
                 if (connections.Count > 0)
@@ -83,7 +83,7 @@ namespace AIChatServer
         private void Disconnect(object? sender, EventArgs args)
         {
             if (sender is not Connection connection) return;
-            DB.SetLastOnline(connection.Id, false);
+            DB.SetLastConnection(connection.Id, false);
             connection.CommandGot -= GotCommand.Invoke;
             connections.Remove(connection);
             if (connections.Count == 0) Disconnected.Invoke(this, new EventArgs());
