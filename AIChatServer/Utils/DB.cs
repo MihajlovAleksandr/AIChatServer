@@ -1,14 +1,14 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Configuration;
+﻿using System.Configuration;
 using System.Data;
 using System.Security.Cryptography;
 using System.Text;
-using System.Transactions;
+using AIChatServer.Entities.Chats;
+using AIChatServer.Entities.Connection;
+using AIChatServer.Entities.Transactions;
+using AIChatServer.Entities.User;
 using MySql.Data.MySqlClient;
-using Newtonsoft.Json;
 
-namespace AIChatServer
+namespace AIChatServer.Utils
 {
     public static class DB
     {
@@ -62,7 +62,7 @@ namespace AIChatServer
                                 Id = reader.GetInt32("Id"),
                                 Email = reader.GetString("Email"),
                                 Password = reader.GetString("Password"),
-                                Premium = reader.IsDBNull("Premium") ? (DateTime?)null : reader.GetDateTime("Premium"),
+                                Premium = reader.IsDBNull("Premium") ? null : reader.GetDateTime("Premium"),
                                 Points = reader.GetInt32("Points"),
                                 UserData = new UserData
                                 {
@@ -131,7 +131,7 @@ namespace AIChatServer
                                 Id = reader.GetInt32("Id"),
                                 Email = reader.GetString("Email"),
                                 Password = reader.GetString("Password"),
-                                Premium = reader.IsDBNull("Premium") ? (DateTime?)null : reader.GetDateTime("Premium"),
+                                Premium = reader.IsDBNull("Premium") ? null : reader.GetDateTime("Premium"),
                                 Points = reader.GetInt32("Points"),
                                 UserData = new UserData
                                 {
@@ -254,7 +254,7 @@ namespace AIChatServer
 
         private static int InsertPreference(Preference preference, int userId, MySqlConnection connection, MySqlTransaction transaction)
         {
-            string insertPreferenceQuery = (preference == null) ? @"
+            string insertPreferenceQuery = preference == null ? @"
         INSERT INTO Preferences (UserId) 
         VALUES (@UserId);
         SELECT LAST_INSERT_ID();" : @"
@@ -505,7 +505,7 @@ WHERE UserId = @UserId";
                     if (result > 0) return password;
                 }
             }
-            return String.Empty;
+            return string.Empty;
         }
 
         public static bool UpdateUserData(UserData userData, int userId)
@@ -773,7 +773,7 @@ WHERE UserId = @UserId";
                                 reader.GetInt32(0),
                                 reader.GetInt32(1),
                                 reader.GetString(2),
-                                reader.IsDBNull(3) ? (DateTime?)null : reader.GetDateTime(3)
+                                reader.IsDBNull(3) ? null : reader.GetDateTime(3)
                             );
                         }
                     }
@@ -890,7 +890,7 @@ WHERE UserId = @UserId";
         }
         public static bool SetLastConnection(int connectionId, bool isOnline)
         {
-            string updatePreferenceQuery = (isOnline) ? @"
+            string updatePreferenceQuery = isOnline ? @"
             UPDATE Connections
             SET LastConnection = NULL, LastOnline = NULL
             WHERE Id =@ConnectionId"
@@ -913,7 +913,7 @@ WHERE UserId = @UserId";
         }
         public static bool SetLastOnline(int connectionId, bool isOnline)
         {
-            string updatePreferenceQuery = (isOnline) ? @"
+            string updatePreferenceQuery = isOnline ? @"
             UPDATE Connections
             SET LastOnline = NULL
             WHERE Id =@ConnectionId"

@@ -1,10 +1,8 @@
-﻿using System;
-using System.Net.Mail;
+﻿using System.Net.Mail;
 using System.Net;
 using Microsoft.Extensions.Configuration;
-using System.IO;
 
-namespace AIChatServer
+namespace AIChatServer.Utils
 {
     public static class EmailManager
     {

@@ -1,13 +1,14 @@
-﻿using System.Net.WebSockets;
+﻿using AIChatServer.Entities.Connection;
+using AIChatServer.Utils;
 
-namespace AIChatServer
+namespace AIChatServer.Entities.User.ServerUsers
 {
     public class UnknownUser : ServerUser
     {
         public event Action<UnknownUser> UserChanged;
         private VerificationCode verificationCode;
         public int Id { get; private set; }
-        public UnknownUser(Connection connection, int id) : base(connection)
+        public UnknownUser(Connection.Connection connection, int id) : base(connection)
         {
             User = new User();
             User.Id = id;

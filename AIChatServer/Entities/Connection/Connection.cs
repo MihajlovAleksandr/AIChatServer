@@ -1,12 +1,8 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
+﻿using AIChatServer.Utils;
 using System.Net.WebSockets;
-using System.Reflection.Metadata;
 using System.Text;
-using System.Threading.Tasks;
 
-namespace AIChatServer
+namespace AIChatServer.Entities.Connection
 {
     public class Connection
     {
@@ -27,7 +23,7 @@ namespace AIChatServer
         public Connection(int id, WebSocket webSocket)
         {
             Console.WriteLine("Create Connection");
-            this.Id = id;
+            Id = id;
             this.webSocket = webSocket;
             Task.Run(() => { HandleClient(webSocket); });
         }

@@ -1,4 +1,6 @@
-﻿using AIChatServer;
+﻿using AIChatServer.Entities.Connection;
+using AIChatServer.Entities.User.ServerUsers;
+using AIChatServer.Utils;
 
 public class ConnectionManager
 {

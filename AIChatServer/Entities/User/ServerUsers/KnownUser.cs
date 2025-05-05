@@ -1,16 +1,11 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Net.WebSockets;
-using System.Text;
-using System.Threading.Tasks;
+﻿using AIChatServer.Entities.Connection;
 
-namespace AIChatServer
+namespace AIChatServer.Entities.User.ServerUsers
 {
     public class KnownUser : ServerUser
     {
         public event EventHandler<Command> CommandGot;
-        public KnownUser(User user, Connection connection): base(connection)
+        public KnownUser(User user, Connection.Connection connection): base(connection)
         {
             User = user;
             GotCommand += OnGotCommand;

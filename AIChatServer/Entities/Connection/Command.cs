@@ -1,13 +1,7 @@
-﻿using Org.BouncyCastle.Bcpg.OpenPgp;
-using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using Newtonsoft.Json;
-using System.Threading.Tasks;
-using System.Net.WebSockets;
+﻿using Newtonsoft.Json;
+using AIChatServer.Utils;
 
-namespace AIChatServer
+namespace AIChatServer.Entities.Connection
 {
     public class Command
     {
@@ -37,7 +31,7 @@ namespace AIChatServer
             if (data.TryGetValue(name, out var val))
             {
                 Console.WriteLine(val);
-                return (T)JsonHelper.Deserialize<T>(val); 
+                return JsonHelper.Deserialize<T>(val); 
             }
 
             Console.WriteLine("null");

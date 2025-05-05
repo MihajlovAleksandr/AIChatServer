@@ -1,17 +1,9 @@
 ﻿using Newtonsoft.Json;
-using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
+using System.Runtime.Serialization;
+using AIChatServer.Utils;
 
-namespace AIChatServer
+namespace AIChatServer.Entities.Chats
 {
-    using System;
-    using Newtonsoft.Json;
-    using System.Runtime.Serialization;
-    using System.Text.Json.Serialization;
-
     public class Message
     {
         [JsonProperty("id")]

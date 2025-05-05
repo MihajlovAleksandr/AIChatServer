@@ -1,14 +1,7 @@
 ﻿using Newtonsoft.Json;
-using Org.BouncyCastle.Bcpg.OpenPgp;
-using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Reflection;
-using System.Text;
 using System.Text.Json;
-using System.Threading.Tasks;
 
-namespace AIChatServer
+namespace AIChatServer.Entities.User
 {
     public class UserData
     {

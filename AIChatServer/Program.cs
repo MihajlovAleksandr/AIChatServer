@@ -1,6 +1,4 @@
-﻿using MySql.Data.MySqlClient;
-using System.Linq.Expressions;
-
+﻿using AIChatServer.Managers;
 namespace AIChatServer
 {
     class Program

@@ -1,16 +1,11 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Net.WebSockets;
-using System.Security.Cryptography;
-using System.Text;
-using System.Threading.Tasks;
+﻿using AIChatServer.Entities.Connection;
+using AIChatServer.Utils;
 
-namespace AIChatServer
+namespace AIChatServer.Entities.User.ServerUsers
 {
     public abstract class ServerUser : IUnknownUser
     {
-        private List<Connection> connections;
+        private List<Connection.Connection> connections;
         protected event EventHandler<Command> GotCommand;
         public event EventHandler Disconnected;
         public User User { get; protected set; }
@@ -29,12 +24,12 @@ namespace AIChatServer
             connections = [];
             AddConnection(user);
         }
-        protected ServerUser(Connection connection)
+        protected ServerUser(Connection.Connection connection)
         {
             connections = [];
             AddConnection(connection);
         }
-        public void AddConnection(Connection connection)
+        public void AddConnection(Connection.Connection connection)
         {
             connection.CommandGot += OnCommandGot;
             connection.Disconnected += Disconnect;
@@ -49,7 +44,7 @@ namespace AIChatServer
                     onConnectCommand.AddData("count", DB.GetConnectionCount(connectionInfo.UserId));
                     onConnectCommand.AddData("isOnline", true);
 
-                    foreach (Connection connectionInList in connections)
+                    foreach (Connection.Connection connectionInList in connections)
                     {
                         SendCommand(connectionInList, onConnectCommand);
                     }
@@ -60,16 +55,16 @@ namespace AIChatServer
         }
         public void AddConnection(ServerUser user)
         {
-            foreach (Connection connection in user.connections)
+            foreach (Connection.Connection connection in user.connections)
                 AddConnection(connection);
         }
-        public Connection? RemoveConnection(int id)
+        public Connection.Connection? RemoveConnection(int id)
         {
             for(int i=0;i<connections.Count;i++)
             {
                 if (connections[i].Id == id)
                 {
-                    Connection connection = connections[i];
+                    Connection.Connection connection = connections[i];
                     connections.Remove(connection);
                     return connection;
                 }
@@ -82,7 +77,7 @@ namespace AIChatServer
         }
         private void Disconnect(object? sender, EventArgs args)
         {
-            if (sender is not Connection connection) return;
+            if (sender is not Connection.Connection connection) return;
             DB.SetLastConnection(connection.Id, false);
             connection.CommandGot -= GotCommand.Invoke;
             connections.Remove(connection);
@@ -93,7 +88,7 @@ namespace AIChatServer
                 ConnectionInfo connectionInfo = DB.GetConnectionInfo(connection.Id);
                 onDisconnectCommand.AddData("connectionInfo", connectionInfo);
                 onDisconnectCommand.AddData("count", DB.GetConnectionCount(connectionInfo.UserId));
-                foreach (Connection connectionInList in connections)
+                foreach (Connection.Connection connectionInList in connections)
                 {
                     SendCommand(connectionInList, onDisconnectCommand);
                 }
@@ -116,14 +111,14 @@ namespace AIChatServer
                 }
             }
         }
-        public static void SendCommand(Connection connection, Command command)
+        public static void SendCommand(Connection.Connection connection, Command command)
         {
             Console.WriteLine($"Sendinng command to client: {JsonHelper.Serialize(command)}");
             connection.SendCommand(JsonHelper.SerializeToBytes(command));
         }
 
 
-        Connection IUnknownUser.GetCurrentConnection()
+        Connection.Connection IUnknownUser.GetCurrentConnection()
         {
             return connections[0];
         }

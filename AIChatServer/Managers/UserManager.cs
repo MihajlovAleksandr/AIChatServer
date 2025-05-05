@@ -1,15 +1,11 @@
-﻿using Newtonsoft.Json;
-using Org.BouncyCastle.Bcpg;
-using Org.BouncyCastle.Math.Field;
-using System;
-using System.Collections.Generic;
-using System.Linq;
+﻿using AIChatServer.Entities.Connection;
+using AIChatServer.Entities.User;
+using AIChatServer.Entities.User.ServerUsers;
+using AIChatServer.Utils;
 using System.Net;
 using System.Net.WebSockets;
-using System.Text;
-using System.Threading.Tasks;
 
-namespace AIChatServer
+namespace AIChatServer.Managers
 {
     public class UserManager
     {
@@ -36,7 +32,7 @@ namespace AIChatServer
         private async void GetNewConnections()
         {
             HttpListener httpListener = new HttpListener();
-            httpListener.Prefixes.Add("https://192.168.100.17:8888/");
+            httpListener.Prefixes.Add("https://192.168.69.151:8888/");
             try
             {
                 httpListener.Start();

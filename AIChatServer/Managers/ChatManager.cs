@@ -1,7 +1,8 @@
-﻿using System.ComponentModel;
-using ZstdSharp.Unsafe;
+﻿using AIChatServer.Entities.Chats;
+using AIChatServer.Entities.User;
+using AIChatServer.Utils;
 
-namespace AIChatServer
+namespace AIChatServer.Managers
 {
     public class ChatManager
     {

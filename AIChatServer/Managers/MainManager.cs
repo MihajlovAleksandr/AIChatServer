@@ -1,10 +1,10 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
+﻿using AIChatServer.Entities.Chats;
+using AIChatServer.Entities.Connection;
+using AIChatServer.Entities.User;
+using AIChatServer.Entities.User.ServerUsers;
+using AIChatServer.Utils;
 
-namespace AIChatServer
+namespace AIChatServer.Managers
 {
     public class MainManager
     {
@@ -123,7 +123,7 @@ namespace AIChatServer
                     if(DB.VerifyPassword(command.GetData<string>("currentPassword"), knownUser.User.Password))
                     {
                         string newPassword = DB.ChangePassword(knownUser.User.Id, command.GetData<string>("newPassword"));
-                        if (!String.IsNullOrEmpty(newPassword))
+                        if (!string.IsNullOrEmpty(newPassword))
                         {
                             ServerUser.SendCommand(command.Sender, new Command("PasswordChanged"));
                             knownUser.User.Password = newPassword;

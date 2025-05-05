@@ -1,11 +1,4 @@
-﻿using Org.BouncyCastle.Crypto.Utilities;
-using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
-
-namespace AIChatServer
+﻿namespace AIChatServer.Entities.User.ServerUsers
 {
     public class VerificationCode
     {
