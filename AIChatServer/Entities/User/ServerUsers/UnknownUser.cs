@@ -47,7 +47,7 @@ namespace AIChatServer.Entities.User.ServerUsers
                         User = new User(email, password);
                         verificationCode = new VerificationCode();
                         Console.WriteLine(verificationCode.Code);
-                        //EmailManager.SendVerificationCode(user.Email, verificationCode.Code);
+                        EmailManager.SendVerificationCode(User.Email, verificationCode.Code);
                         SendCommand(command.Sender, new Command("VerificationCodeSend"));
                     }
                     else
