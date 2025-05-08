@@ -3,22 +3,29 @@ using AIChatServer.Entities.Connection;
 using AIChatServer.Entities.User;
 using AIChatServer.Entities.User.ServerUsers;
 using AIChatServer.Utils;
+using AIChatServer.Utils.AI;
+using System.Threading.Tasks;
+using ZstdSharp.Unsafe;
 
 namespace AIChatServer.Managers
 {
     public class MainManager
     {
-        ChatManager chatManager;
-        UserManager userManager;
+        private ChatManager chatManager;
+        private UserManager userManager;
+        private AIManager aIManager;
         public MainManager()
         {
-            chatManager = new ChatManager();
+            int aiId = 1;
+            chatManager = new ChatManager(aiId, 100);
             userManager = new UserManager();
+            aIManager = new AIManager(aiId, new DeepSeekController(70), DB.GetAIMessagesByChat(chatManager.GetUserChats(aiId)));
             userManager.CommandGot += OnCommandGot;
             chatManager.OnChatCreated += OnChatCreated;
             chatManager.OnChatEnded += OnChatEnded;
             userManager.OnConnectionEvent += OnConnectionEvents;
             userManager.IsChatSearching += chatManager.IsSearchingChat;
+            aIManager.OnSendMessage += OnAISendMessage;
         }
         private void OnConnectionEvents(object? sender, bool isOnline)
         {
@@ -29,9 +36,8 @@ namespace AIChatServer.Managers
             userManager.SendCommand(DB.GetUsersInSameChats(serverUser.User.Id), command);
         }
         
-        
 
-        private void OnCommandGot(object? sender, Command command)
+        private async void OnCommandGot(object? sender, Command command)
         {
             KnownUser knownUser = (KnownUser)sender;
             switch (command.Operation)
@@ -43,16 +49,14 @@ namespace AIChatServer.Managers
                         ServerUser.SendCommand(command.Sender, new Command("LogOut"));
                         return;
                     }
-                    message = DB.SendMessage(message);
-                    Command sendMessageCommand = new Command("SendMessage");
-                    sendMessageCommand.AddData("message", message);
-                    userManager.SendCommand(chatManager.GetUsersInChat(message.Chat), sendMessageCommand);
+                    await SendMessageAsync(message);
                     break;
                 case "SearchChat":
-                    chatManager.SearchChat(knownUser.User);
+                    string type = command.GetData<string>("param");
                     Command seachChatCommand = new Command("SearchChat");
-                    seachChatCommand.AddData("isChatSearching",true);
+                    seachChatCommand.AddData("isChatSearching", true);
                     knownUser.SendCommand(seachChatCommand);
+                    await chatManager.SearchChatAsync(knownUser.User, type);
                     break;
                 case "EndChat":
                     chatManager.EndChat(command.GetData<int>("chatId"));
@@ -164,12 +168,20 @@ namespace AIChatServer.Managers
         }
         private void OnChatCreated(Chat chat)
         {
+            if (chat.ContainsAI(aIManager.AIId))
+            {
+                aIManager.CreateDialog(chat.Id);
+            }
             Command command = new Command("CreateChat");
             command.AddData("chat", chat);
             userManager.SendCommand(chat.Users, command);
         }
         private void OnChatEnded(Chat chat)
         {
+            if (chat.ContainsAI(aIManager.AIId))
+            {
+                aIManager.EndDialog(chat.Id);
+            }
             Command command = new Command("EndChat");
             command.AddData("chat", chat);
             userManager.SendCommand(chat.Users, command);
@@ -178,10 +190,42 @@ namespace AIChatServer.Managers
         {
             Command command = new Command("LoadUsersInChat");
             var data = DB.LoadUsers(chatId);
+            int aiIndex = data.Item1.IndexOf(aIManager.AIId);
+            string chatType = chatManager.GetChatType(chatId);
+            if (aiIndex != -1)
+            {
+                data.Item3[aiIndex] = true;
+            }
+            if (chatType == "random")
+            {
+                data.Item2[aiIndex] = new UserData() { Age = 0, Name = "Random", Gender = '-' };
+                data.Item3[aiIndex] = true;
+            }
             command.AddData("ids", data.Item1);
             command.AddData("userData", data.Item2);
             command.AddData("isOnline", data.Item3);
             return command;
+        }
+        private async Task SendMessageAsync(Message message)
+        {
+            message = DB.SendMessage(message);
+            int[] users = chatManager.GetUsersInChat(message.Chat);
+            Command sendMessageCommand = new Command("SendMessage");
+            sendMessageCommand.AddData("message", message);
+            userManager.SendCommand(users, sendMessageCommand);
+            if (users.Contains(aIManager.AIId))
+            {
+                await aIManager.SendMessageAsync(message.Chat, message.Text);
+            }
+        }
+        private void OnAISendMessage(Message message)
+        {
+            message = DB.SendMessage(message);
+            int[] allUsers = chatManager.GetUsersInChat(message.Chat);
+            int[] users = allUsers.Where(user => user != aIManager.AIId).ToArray();
+            Command sendMessageCommand = new Command("SendMessage");
+            sendMessageCommand.AddData("message", message);
+            userManager.SendCommand(users, sendMessageCommand);
         }
 
     }

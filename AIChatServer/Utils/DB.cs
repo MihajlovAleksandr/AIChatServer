@@ -2,9 +2,9 @@
 using System.Data;
 using System.Security.Cryptography;
 using System.Text;
+using AIChatServer.Entities.AI;
 using AIChatServer.Entities.Chats;
 using AIChatServer.Entities.Connection;
-using AIChatServer.Entities.Transactions;
 using AIChatServer.Entities.User;
 using MySql.Data.MySqlClient;
 
@@ -89,7 +89,7 @@ namespace AIChatServer.Utils
                 }
             }
         }
-    
+
         private static User GetUserByEmail(string email)
         {
             string getUsersQuery = @"
@@ -552,9 +552,9 @@ WHERE UserId = @UserId";
             }
         }
 
-        public static Chat CreateChat(int[] users)
+        public static Chat CreateChat(int[] users, string type)
         {
-            Chat chat = CreateChat();
+            Chat chat = CreateChat(type);
             chat.Users = users;
             foreach (int userId in users)
                 AddUserToChat(userId, chat.Id);
@@ -592,10 +592,10 @@ WHERE UserId = @UserId";
             throw new Exception($"Чат с ID {chatId} не найден после обновления");
         }
 
-        private static Chat CreateChat()
+        private static Chat CreateChat(string type)
         {
             string createChatQuery = @"
-                INSERT INTO Chats () VALUES ();
+                INSERT INTO Chats (Type) VALUES (@Type);
                 SELECT * FROM Chats
                 ORDER BY id DESC
                 LIMIT 1;";
@@ -604,6 +604,7 @@ WHERE UserId = @UserId";
             {
                 using (var command = new MySqlCommand(createChatQuery, connection))
                 {
+                    command.Parameters.AddWithValue("@Type", type);
                     using (var reader = command.ExecuteReader())
                     {
                         if (reader.Read())
@@ -611,7 +612,8 @@ WHERE UserId = @UserId";
                             Chat chat = new Chat()
                             {
                                 Id = reader.GetInt32("Id"),
-                                CreationTime = reader.GetDateTime("CreationTime")
+                                CreationTime = reader.GetDateTime("CreationTime"),
+                                Type = reader.GetString("Type")
                             };
                             return chat;
                         }
@@ -643,9 +645,9 @@ WHERE UserId = @UserId";
         public static Message SendMessage(Message message)
         {
             string sendMessageQuery = @"
-    INSERT INTO Messages (ChatId, UserId, Text) 
-    VALUES (@ChatId, @UserId, @Text);
-    SELECT LAST_INSERT_ID();";
+                INSERT INTO Messages (ChatId, UserId, Text) 
+                VALUES (@ChatId, @UserId, @Text);
+                SELECT LAST_INSERT_ID();";
 
             using (var connection = GetConnection())
             {
@@ -655,16 +657,14 @@ WHERE UserId = @UserId";
                     command.Parameters.AddWithValue("@UserId", message.Sender);
                     command.Parameters.AddWithValue("@Text", message.Text);
 
-                    // Получаем ID вставленной записи
                     var insertedId = Convert.ToInt32(command.ExecuteScalar());
 
                     if (insertedId > 0)
                     {
-                        // Получаем полные данные о сообщении
                         string getMessageQuery = @"
-                SELECT Id, ChatId, UserId, Text, Time, LastUpdate 
-                FROM Messages 
-                WHERE Id = @Id";
+                            SELECT Id, ChatId, UserId, Text, Time, LastUpdate 
+                            FROM Messages 
+                            WHERE Id = @Id";
 
                         using (var getCommand = new MySqlCommand(getMessageQuery, connection))
                         {
@@ -792,82 +792,6 @@ WHERE UserId = @UserId";
             }
         }
 
-        public static bool MakePointsTransaction(int userId, int amount, string description)
-        {
-            string addTransactionQuery = @"
-                INSERT INTO PointsTransactions (UserId, Amount, Description) 
-                VALUES (@UserId, @Amount, @Description)";
-
-            string updatePointsQuery = @"
-                UPDATE Users
-                SET Points = Points + @Amount
-                WHERE Id = @UserId";
-
-            using (var connection = GetConnection())
-            {
-                using (var transaction = connection.BeginTransaction())
-                {
-                    try
-                    {
-                        using (var addTransactionCommand = new MySqlCommand(addTransactionQuery, connection, transaction))
-                        {
-                            addTransactionCommand.Parameters.AddWithValue("@UserId", userId);
-                            addTransactionCommand.Parameters.AddWithValue("@Amount", amount);
-                            addTransactionCommand.Parameters.AddWithValue("@Description", description);
-                            addTransactionCommand.ExecuteNonQuery();
-                        }
-
-                        using (var updatePointsCommand = new MySqlCommand(updatePointsQuery, connection, transaction))
-                        {
-                            updatePointsCommand.Parameters.AddWithValue("@UserId", userId);
-                            updatePointsCommand.Parameters.AddWithValue("@Amount", amount);
-                            updatePointsCommand.ExecuteNonQuery();
-                        }
-
-                        transaction.Commit();
-                        return true;
-                    }
-                    catch
-                    {
-                        transaction.Rollback();
-                        throw;
-                    }
-                }
-            }
-        }
-
-
-        public static List<PointsTransaction> GetPointsTransactionsByUserId(int userId)
-        {
-            var transactions = new List<PointsTransaction>();
-            string getTransactionsQuery = "SELECT * FROM PointsTransactions WHERE UserId = @UserId";
-
-            using (var connection = GetConnection())
-            {
-                using (var command = new MySqlCommand(getTransactionsQuery, connection))
-                {
-                    command.Parameters.AddWithValue("@UserId", userId);
-
-                    using (var reader = command.ExecuteReader())
-                    {
-                        while (reader.Read())
-                        {
-                            var transaction = new PointsTransaction
-                            {
-                                Id = reader.GetInt32("Id"),
-                                UserId = reader.GetInt32("UserId"),
-                                Amount = reader.GetInt32("Amount"),
-                                Description = reader.GetString("Description"),
-                                TransactionTime = reader.GetDateTime("TransactionTime")
-                            };
-                            transactions.Add(transaction);
-                        }
-                    }
-                }
-            }
-            return transactions;
-        }
-
         public static bool IsUserPremium(int userId)
         {
             string isPremiumQuery = @"
@@ -936,7 +860,7 @@ WHERE UserId = @UserId";
         public static (List<Chat>, List<Chat>) GetNewChats(int userId, DateTime lastOnline)
         {
             var chats = (new List<Chat>(), new List<Chat>());
-            string getMessagesQuery = @" SELECT c.Id, c.CreationTime, c.EndTime
+            string getMessagesQuery = @" SELECT c.Id, c.CreationTime, c.EndTime, c.Type
                                         FROM Chats c
                                         JOIN UsersChats uc ON c.Id = uc.ChatId
                                         WHERE uc.UserId = @UserId 
@@ -959,7 +883,8 @@ WHERE UserId = @UserId";
                             {
                                 Id = reader.GetInt32("Id"),
                                 CreationTime = reader.GetDateTime("CreationTime"),
-                                EndTime = reader.IsDBNull("EndTime") ? null : reader.GetDateTime("EndTime")
+                                EndTime = reader.IsDBNull("EndTime") ? null : reader.GetDateTime("EndTime"),
+                                Type = reader.GetString("Type")
                             };
                             if (chat.CreationTime > lastOnline)
                             {
@@ -1082,6 +1007,7 @@ WHERE
                                     {
                                         Id = reader.GetInt32("Id"),
                                         CreationTime = reader.GetDateTime("CreationTime"),
+                                        Type = reader.GetString("Type"),
                                         Users = Array.Empty<int>()
                                     };
                                     chats.Add(chat.Id, chat);
@@ -1160,6 +1086,153 @@ WHERE
                         return Convert.ToBoolean(result);
                     }
                     return false;
+                }
+            }
+        }
+        public static AIMessage AddAIMessage(AIMessage aIMessage, string type)
+        {
+            string query = @"
+                INSERT INTO AIMessages (ChatId, Text, Role, Type) 
+                VALUES (@ChatId, @Text, @Role, @Type);
+                SELECT LAST_INSERT_ID();";
+
+            using (var connection = GetConnection())
+            {
+                using (var command = new MySqlCommand(query, connection))
+                {
+                    command.Parameters.AddWithValue("@ChatId", aIMessage.ChatId);
+                    command.Parameters.AddWithValue("@Text", aIMessage.Content);
+                    command.Parameters.AddWithValue("@Role", aIMessage.Role);
+                    command.Parameters.AddWithValue("@Type", type);
+
+                    int messageId = Convert.ToInt32(command.ExecuteScalar());
+
+                    return new AIMessage(messageId, aIMessage.ChatId, aIMessage.Role, aIMessage.Content);
+                }
+            }
+        }
+        public static Dictionary<int, AIMessageDispatcher> GetAIMessagesByChat(List<int> chatIds)
+        {
+            var dispatchers = new Dictionary<int, AIMessageDispatcher>();
+            if (chatIds == null || chatIds.Count == 0)
+            {
+                return dispatchers;
+            }
+
+            var messagesByChat = new Dictionary<int, (List<AIMessage> MainMessages, List<AIMessage> CompressedMessages)>();
+            string query = $@"
+                    SELECT Id, ChatId, Text, Role, Type 
+                    FROM AIMessages 
+                    WHERE ChatId IN ({string.Join(",", chatIds.Select((_, i) => $"@ChatId{i}"))}) 
+                    ORDER BY ChatId, Id ASC";
+            using (var connection = GetConnection())
+            {
+                using (var command = new MySqlCommand(query, connection))
+                {
+                    for (int i = 0; i < chatIds.Count; i++)
+                    {
+                        command.Parameters.AddWithValue($"@ChatId{i}", chatIds[i]);
+                    }
+
+                    using (var reader = command.ExecuteReader())
+                    {
+                        while (reader.Read())
+                        {
+                            var chatId = reader.GetInt32("ChatId");
+                            var message = new AIMessage(
+                                reader.GetInt32("Id"),
+                                chatId,
+                                reader.GetString("Role"),
+                                reader.GetString("Text")
+                            );
+                            if (!messagesByChat.TryGetValue(chatId, out var messageLists))
+                            {
+                                messageLists = (new List<AIMessage>(), new List<AIMessage>());
+                                messagesByChat[chatId] = messageLists;
+                            }
+                            if (reader.GetString("Type") == "message")
+                            {
+                                messageLists.MainMessages.Add(message);
+                            }
+                            else
+                            {
+                                messageLists.CompressedMessages.Add(message);
+                            }
+                        }
+                    }
+                }
+            }
+
+            foreach (var chatId in chatIds)
+            {
+                if (messagesByChat.TryGetValue(chatId, out var messages))
+                {
+                    var dispatcher = new AIMessageDispatcher();
+                    dispatcher.SetMainMessages(messages.MainMessages);
+                    dispatcher.SetCompressedMessages(messages.CompressedMessages);
+                    dispatchers[chatId] = dispatcher;
+                }
+                else
+                {
+                    dispatchers[chatId] = new AIMessageDispatcher();
+                }
+            }
+
+            return dispatchers;
+        }
+        public static bool DeleteAIMessages(List<AIMessage> messages)
+        {
+            if (messages == null || messages.Count == 0)
+                return true;
+
+            string query = @"
+                DELETE FROM AIMessages 
+                WHERE Id IN (" + string.Join(",", messages.Select((_, i) => $"@Id{i}")) + ")";
+
+            using (var connection = GetConnection())
+            {
+                using (var command = new MySqlCommand(query, connection))
+                {
+                    for (int i = 0; i < messages.Count; i++)
+                    {
+                        command.Parameters.AddWithValue($"@Id{i}", messages[i].Id);
+                    }
+
+                    return command.ExecuteNonQuery() > 0;
+                }
+            }
+        }
+        public static bool AddChatTokenUsage(int chatId)
+        {
+            string query = @"
+                INSERT INTO ChatTokenUsage (ChatId) 
+                VALUES (@ChatId);";
+
+            using (var connection = GetConnection())
+            {
+                using (var command = new MySqlCommand(query, connection))
+                {
+                    command.Parameters.AddWithValue("@ChatId", chatId);
+                    int rowsAffected = command.ExecuteNonQuery();
+                    return rowsAffected > 0;
+                }
+            }
+        }
+        public static bool UseToken(int chatId, int tokenCount)
+        {
+            string query = @"
+                UPDATE ChatTokenUsage
+                SET TokensCount = TokensCount + @TokensCount
+                WHERE ChatId = @ChatId";
+
+            using (var connection = GetConnection())
+            {
+                using (var command = new MySqlCommand(query, connection))
+                {
+                    command.Parameters.AddWithValue("@ChatId", chatId);
+                    command.Parameters.AddWithValue("@TokensCount", tokenCount);
+                    int rowsAffected = command.ExecuteNonQuery();
+                    return rowsAffected > 0;
                 }
             }
         }

@@ -13,6 +13,8 @@ namespace AIChatServer.Entities.Chats
 
         public DateTime? EndTime { get; set; }
         [JsonIgnore]
+        public string Type { get; set; }
+        [JsonIgnore]
         public int[] Users { get; set; }
         public Chat()
         {
@@ -22,6 +24,10 @@ namespace AIChatServer.Entities.Chats
         public int CompareTo(Chat other)
         {
             return CreationTime.CompareTo(other.CreationTime);
+        }
+        public bool ContainsAI(int aiId)
+        {
+            return Users.Contains(aiId);
         }
         public override bool Equals(object? obj)
         {
