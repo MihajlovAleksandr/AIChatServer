@@ -1,21 +1,13 @@
-﻿using Newtonsoft.Json;
-
-namespace AIChatServer
+﻿namespace AIChatServer.Entities.User
 {
     public class User
     {
         public int Id { get; set; }
-
         public string Email { get; set; }
-
         public string Password { get; set; }
-
         public DateTime? Premium { get; set; }
-
         public int Points { get; set; }
-
         public UserData UserData { get; set; }
-        
         public Preference Preference { get; set; }
         public User()
         {
@@ -26,6 +18,12 @@ namespace AIChatServer
             Email = email;
             Password = password;
             
+        }
+        public override bool Equals(object? obj)
+        {
+            User other = obj as User;
+            if (other == null) return false;
+            return Id.Equals(other.Id);
         }
         public override string ToString()
         {

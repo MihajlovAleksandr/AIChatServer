@@ -1,17 +1,20 @@
-﻿using System.Net.WebSockets;
+﻿using AIChatServer.Entities.Connection;
+using AIChatServer.Utils;
 
-namespace AIChatServer
+namespace AIChatServer.Entities.User.ServerUsers
 {
     public class UnknownUser : ServerUser
     {
-        public event EventHandler<User> UserChanged;
-        public User user { get; private set; }
+        public event Action<UnknownUser> UserChanged;
         private VerificationCode verificationCode;
-        public UnknownUser(Connection connection, int id) : base(connection)
+        public int Id { get; private set; }
+        public UnknownUser(Connection.Connection connection, int id) : base(connection)
         {
-            user = new User();
-            user.Id = id;
+            User = new User();
+            User.Id = id;
+            Id = id;
             base.GotCommand += (s, e) => GotCommand(e);
+            Disconnected += (s, e) => { DB.DeleteUnknownConnection(connection.Id); };
         }
         private void GotCommand(Command command) {
 
@@ -20,23 +23,31 @@ namespace AIChatServer
             {
                 case "GetEntryToken":
                     Command entryTokenCommand =new Command("EntryToken");
-                    entryTokenCommand.AddData("token", TokenManager.GenerateEntryToken(user.Id));
+                    entryTokenCommand.AddData("token", TokenManager.GenerateEntryToken(User.Id));
                     SendCommand(command.Sender, entryTokenCommand);
                     break;
                 case "LoginIn":
                     string email = command.GetData<string>("email");
                     string password = command.GetData<string>("password");
-                    KnowUser(command.Sender, DB.LoginIn(email, password));
-                    break;
+                    User = DB.LoginIn(email, password);
+                    if (User != null)
+                    {
+                        KnowUser();
+                    }
+                    else
+                    {
+                        SendCommand(command.Sender, new Command("LoginInFailed"));
+                    }
+                        break;
                 case "Registration":
                     email = command.GetData<string>("email");
                     if (DB.IsEmailFree(email))
                     {
                         password = command.GetData<string>("password");
-                        user = new User(email, password);
+                        User = new User(email, password);
                         verificationCode = new VerificationCode();
                         Console.WriteLine(verificationCode.Code);
-                        //EmailManager.SendVerificationCode(user.email, verificationCode.Code);
+                        EmailManager.SendVerificationCode(User.Email, verificationCode.Code);
                         SendCommand(command.Sender, new Command("VerificationCodeSend"));
                     }
                     else
@@ -52,26 +63,28 @@ namespace AIChatServer
                     break;
                 case "AddUserData":
                     UserData data = command.GetData<UserData>("userData");
-                    user.UserData = data;
+                    User.UserData = data;
                     SendCommand(command.Sender, new Command("UserDataAdded"));
                     break;
                 case "AddPreference":
                     Preference preference = command.GetData<Preference>("preference");
                     if (preference != null)
                     {
-                        user.Preference = preference;
+                        User.Preference = preference;
                     }
-                    user.Id = (int)DB.AddUser(user);
-                    KnowUser(command.Sender, user);
+                    User.Id = (int)DB.AddUser(User, command.Sender.Id);
+                    
+                    KnowUser();
                     break;
             }
         }
-        private void KnowUser(Connection connection,User user)
+        private void KnowUser()
         {
-            if (user != null)
-            {
-                UserChanged.Invoke(connection, user);
-            }
+            UserChanged.Invoke(this);
+        }
+        public void SetUser(User user)
+        {
+            User = user;
         }
     }
 }

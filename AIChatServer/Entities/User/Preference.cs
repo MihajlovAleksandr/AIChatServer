@@ -1,6 +1,6 @@
 ﻿using Newtonsoft.Json;
 
-namespace AIChatServer
+namespace AIChatServer.Entities.User
 {
     public class Preference
     {

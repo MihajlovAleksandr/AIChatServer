@@ -1,13 +1,11 @@
-﻿using MySql.Data.MySqlClient;
-using System.Linq.Expressions;
-
+﻿using AIChatServer.Managers;
 namespace AIChatServer
 {
     class Program
     {
         static void Main(string[] args)
         {
-            UserManager userManager = new UserManager();
+            MainManager mainManager = new MainManager();
             Console.ReadLine();
         }
     }

@@ -1,12 +1,10 @@
 ﻿using Microsoft.Extensions.Configuration;
 using Microsoft.IdentityModel.Tokens;
-using System;
 using System.IdentityModel.Tokens.Jwt;
-using System.IO;
 using System.Security.Claims;
 using System.Text;
 
-namespace AIChatServer
+namespace AIChatServer.Utils
 {
     public static class TokenManager
     {
@@ -23,7 +21,6 @@ namespace AIChatServer
                 .AddJsonFile("appsettings.json")
                 .Build();
 
-            // Получение настроек JWT
             var jwtSettings = configuration.GetSection("Jwt");
             secretKey = jwtSettings["Key"];
             issuer = jwtSettings["Issuer"];
@@ -31,29 +28,26 @@ namespace AIChatServer
             expireDays = int.Parse(jwtSettings["ExpireDays"]);
             expireMinutes = int.Parse(jwtSettings["ExpireMinutes"]);
 
-            // Проверка длины ключа
             if (Encoding.UTF8.GetBytes(secretKey).Length < 32)
             {
                 throw new ArgumentException("Секретный ключ должен быть не менее 256 бит (32 байта).");
             }
         }
 
-        public static string GenerateToken(int userId)
+        public static string GenerateToken(int userId, int connectionId)
         {
             var key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(secretKey));
 
-            // Создание подписывающих учетных данных
             var creds = new SigningCredentials(key, SecurityAlgorithms.HmacSha256);
 
-            // Создание утверждений (claims)
             var claims = new[]
             {
-                new Claim(JwtRegisteredClaimNames.Sub, userId.ToString()), // Добавляем userId в claim "sub"
+                new Claim(JwtRegisteredClaimNames.Sub, userId.ToString()),
+                new Claim("connectionId", connectionId.ToString()),
                 new Claim(JwtRegisteredClaimNames.Jti, Guid.NewGuid().ToString()),
                 new Claim(JwtRegisteredClaimNames.Iat, DateTimeOffset.UtcNow.ToUnixTimeSeconds().ToString(), ClaimValueTypes.Integer64),
             };
 
-            // Создание JWT токена
             var token = new JwtSecurityToken(
                 issuer: issuer,
                 audience: audience,
@@ -62,49 +56,21 @@ namespace AIChatServer
                 signingCredentials: creds
             );
 
-            // Генерация строки токена
-            var tokenHandler = new JwtSecurityTokenHandler();
-            return tokenHandler.WriteToken(token);
-        }
-        public static string GenerateEntryToken(int userId)
-        {
-            var key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(secretKey));
-
-            // Создание подписывающих учетных данных
-            var creds = new SigningCredentials(key, SecurityAlgorithms.HmacSha256);
-
-            // Создание утверждений (claims)
-            var claims = new[]
-            {
-                new Claim(JwtRegisteredClaimNames.Sub, userId.ToString()), // Добавляем userId в claim "sub"
-                new Claim(JwtRegisteredClaimNames.Jti, Guid.NewGuid().ToString()),
-                new Claim(JwtRegisteredClaimNames.Iat, DateTimeOffset.UtcNow.ToUnixTimeSeconds().ToString(), ClaimValueTypes.Integer64),
-            };
-
-            // Создание JWT токена
-            var token = new JwtSecurityToken(
-                issuer: issuer,
-                audience: audience,
-                claims: claims,
-                expires: DateTime.UtcNow.AddMinutes(expireDays),
-                signingCredentials: creds
-            );
-
-            // Генерация строки токена
             var tokenHandler = new JwtSecurityTokenHandler();
             return tokenHandler.WriteToken(token);
         }
 
-        public static bool ValidateToken(string token, out int userId, out DateTime expirationTime)
+
+        public static bool ValidateToken(string token, out int userId, out int connectionId, out DateTime expirationTime)
         {
             var tokenHandler = new JwtSecurityTokenHandler();
             var key = Encoding.UTF8.GetBytes(secretKey);
-            userId = 0; // Инициализация userId значением по умолчанию
-            expirationTime = DateTime.MinValue; // Инициализация expirationTime значением по умолчанию
+            userId = 0;
+            connectionId = 0;
+            expirationTime = DateTime.MinValue;
 
             try
             {
-                // Валидация токена
                 var principal = tokenHandler.ValidateToken(token, new TokenValidationParameters
                 {
                     ValidateIssuer = true,
@@ -114,41 +80,138 @@ namespace AIChatServer
                     ValidIssuer = issuer,
                     ValidAudience = audience,
                     IssuerSigningKey = new SymmetricSecurityKey(key),
-                    ClockSkew = TimeSpan.Zero // Отключаем ClockSkew
+                    ClockSkew = TimeSpan.Zero
                 }, out SecurityToken validatedToken);
 
-                // Извлечение userId из claims
-                var subClaim = principal.FindFirst(ClaimTypes.NameIdentifier)?.Value; // Используем ClaimTypes.NameIdentifier
+                var subClaim = principal.FindFirst(ClaimTypes.NameIdentifier)?.Value;
                 if (subClaim == null)
                 {
-                    subClaim = principal.FindFirst(JwtRegisteredClaimNames.Sub)?.Value; // Альтернативно используем JwtRegisteredClaimNames.Sub
+                    subClaim = principal.FindFirst(JwtRegisteredClaimNames.Sub)?.Value;
                 }
 
-                if (subClaim != null)
-                {
-                    Console.WriteLine($"Sub claim value: {subClaim}"); // Логирование значения sub claim
-                    if (int.TryParse(subClaim, out userId))
-                    {
-                        Console.WriteLine($"User ID successfully extracted: {userId}"); // Логирование успешного извлечения userId
+                var connectionIdClaim = principal.FindFirst("connectionId")?.Value;
 
-                        // Извлечение времени истечения срока действия токена
+                if (subClaim != null && connectionIdClaim != null)
+                {
+                    Console.WriteLine($"Sub claim value: {subClaim}");
+                    Console.WriteLine($"ConnectionId claim value: {connectionIdClaim}");
+
+                    if (int.TryParse(subClaim, out userId) && int.TryParse(connectionIdClaim, out connectionId))
+                    {
+
                         if (validatedToken is JwtSecurityToken jwtToken)
                         {
                             expirationTime = jwtToken.ValidTo;
                         }
 
-                        return true; // Токен валиден, userId успешно извлечен
+                        Console.WriteLine($"User ID successfully extracted: {userId}");
+                        Console.WriteLine($"Connection ID successfully extracted: {connectionId}");
+                        return true;
                     }
                     else
                     {
                         Console.WriteLine("Failed to parse user ID from token.");
-                        return false; // Токен валиден, но userId не удалось извлечь
+                        return false;
+                    }
+                }
+                else
+                {
+                    Console.WriteLine("Sub claim or ConnectionId claim is missing in token.");
+                    return false;
+                }
+            }
+            catch (SecurityTokenExpiredException)
+            {
+                Console.WriteLine("Token has expired.");
+                return false;
+            }
+            catch (SecurityTokenInvalidIssuerException)
+            {
+                Console.WriteLine("Token issuer is invalid.");
+                return false;
+            }
+            catch (SecurityTokenInvalidAudienceException)
+            {
+                Console.WriteLine("Token audience is invalid.");
+                return false;
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine("Token validation failed: " + ex.Message);
+                return false;
+            }
+        }
+
+
+        public static string GenerateEntryToken(int userId)
+        {
+            var key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(secretKey));
+
+            var creds = new SigningCredentials(key, SecurityAlgorithms.HmacSha256);
+
+            var claims = new[]
+            {
+        new Claim(JwtRegisteredClaimNames.Sub, userId.ToString()),
+        new Claim(JwtRegisteredClaimNames.Jti, Guid.NewGuid().ToString()),
+        new Claim(JwtRegisteredClaimNames.Iat, DateTimeOffset.UtcNow.ToUnixTimeSeconds().ToString(), ClaimValueTypes.Integer64),
+    };
+
+            var token = new JwtSecurityToken(
+                issuer: issuer,
+                audience: audience,
+                claims: claims,
+                expires: DateTime.UtcNow.AddMinutes(expireMinutes),
+                signingCredentials: creds
+            );
+            var tokenHandler = new JwtSecurityTokenHandler();
+            return tokenHandler.WriteToken(token);
+        }
+
+        public static bool ValidateEntryToken(string token, out int userId)
+        {
+            var tokenHandler = new JwtSecurityTokenHandler();
+            var key = Encoding.UTF8.GetBytes(secretKey);
+            userId = 0;
+
+            try
+            {
+                var principal = tokenHandler.ValidateToken(token, new TokenValidationParameters
+                {
+                    ValidateIssuer = true,
+                    ValidateAudience = true,
+                    ValidateLifetime = true,
+                    ValidateIssuerSigningKey = true,
+                    ValidIssuer = issuer,
+                    ValidAudience = audience,
+                    IssuerSigningKey = new SymmetricSecurityKey(key),
+                    ClockSkew = TimeSpan.Zero
+                }, out SecurityToken validatedToken);
+
+                var subClaim = principal.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+                if (subClaim == null)
+                {
+                    subClaim = principal.FindFirst(JwtRegisteredClaimNames.Sub)?.Value;
+                }
+
+                if (subClaim != null)
+                {
+                    Console.WriteLine($"Sub claim value: {subClaim}");
+
+                    if (int.TryParse(subClaim, out userId))
+                    {
+                        Console.WriteLine($"User ID successfully extracted: {userId}");
+                        return true;
+                    }
+                    else
+                    {
+                        Console.WriteLine("Failed to parse user ID from token.");
+                        return false;
                     }
                 }
                 else
                 {
                     Console.WriteLine("Sub claim is missing in token.");
-                    return false; // Токен валиден, но claim sub отсутствует
+                    return false;
                 }
             }
             catch (SecurityTokenExpiredException)

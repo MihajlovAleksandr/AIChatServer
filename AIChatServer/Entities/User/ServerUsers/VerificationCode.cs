@@ -1,11 +1,4 @@
-﻿using Org.BouncyCastle.Crypto.Utilities;
-using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
-
-namespace AIChatServer
+﻿namespace AIChatServer.Entities.User.ServerUsers
 {
     public class VerificationCode
     {
@@ -16,7 +9,7 @@ namespace AIChatServer
         public VerificationCode()
         {
             Random random = new();
-            code = 111111;//random.Next(100000, 999999);
+            code = random.Next(100000, 999999);
             validTo = DateTime.Now.AddMinutes(15);
             isVerify = false;
         }
