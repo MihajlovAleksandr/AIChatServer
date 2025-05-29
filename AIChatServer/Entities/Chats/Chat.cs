@@ -15,9 +15,10 @@ namespace AIChatServer.Entities.Chats
         [JsonIgnore]
         public string Type { get; set; }
         [JsonIgnore]
-        public int[] Users { get; set; }
+        public Dictionary<int, string> UsersNames { get; set; }
         public Chat()
         {
+            UsersNames = new Dictionary<int, string>();
             CreationTime = DateTime.Now;
         }
 
@@ -27,7 +28,7 @@ namespace AIChatServer.Entities.Chats
         }
         public bool ContainsAI(int aiId)
         {
-            return Users.Contains(aiId);
+            return UsersNames.TryGetValue(aiId, out string? _);
         }
         public override bool Equals(object? obj)
         {

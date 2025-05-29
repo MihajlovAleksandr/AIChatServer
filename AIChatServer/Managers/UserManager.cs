@@ -2,6 +2,7 @@
 using AIChatServer.Entities.User;
 using AIChatServer.Entities.User.ServerUsers;
 using AIChatServer.Utils;
+using Microsoft.Extensions.Configuration;
 using System.Net;
 using System.Net.WebSockets;
 
@@ -14,10 +15,18 @@ namespace AIChatServer.Managers
         public event EventHandler<Command> CommandGot;
         public event EventHandler<bool> OnConnectionEvent;
         public event Func<int, bool> IsChatSearching;
+        private readonly string serverURL;
 
 
         public UserManager()
         {
+            var configuration = new ConfigurationBuilder()
+                .SetBasePath(Directory.GetCurrentDirectory())
+                .AddJsonFile("appsettings.json")
+                .Build();
+
+            var aiSettings = configuration.GetSection("ServerSettings");
+            serverURL = aiSettings["URL"] ?? throw new ArgumentNullException("URL");
             connectionManager = new ConnectionManager();
             connectionManager.OnConnected += OnUserConnected;
             Task.Run(GetNewConnections);
@@ -32,7 +41,7 @@ namespace AIChatServer.Managers
         private async void GetNewConnections()
         {
             HttpListener httpListener = new HttpListener();
-            httpListener.Prefixes.Add("https://192.168.69.151:8888/");
+            httpListener.Prefixes.Add(serverURL);
             try
             {
                 httpListener.Start();

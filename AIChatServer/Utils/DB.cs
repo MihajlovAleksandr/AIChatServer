@@ -6,6 +6,7 @@ using AIChatServer.Entities.AI;
 using AIChatServer.Entities.Chats;
 using AIChatServer.Entities.Connection;
 using AIChatServer.Entities.User;
+using Google.Protobuf.WellKnownTypes;
 using MySql.Data.MySqlClient;
 
 namespace AIChatServer.Utils
@@ -316,6 +317,7 @@ namespace AIChatServer.Utils
                 }
             }
         }
+
         public static void UpdateConnection(int connectionId, int userId)
         {
             string addConnectionQuery = "UPDATE connections SET UserId = @UserId WHERE Id = @Id;";
@@ -332,8 +334,8 @@ namespace AIChatServer.Utils
 
         public static ConnectionInfo GetConnectionInfo(int connectionId, int defaultUserId = 0)
         {
-            string getMessagesQuery = @"SELECT Id, UserId, Device, LastOnline FROM connections WHERE
-                                       Id = @ConnectionId";
+            string getMessagesQuery = @"SELECT Id, UserId, Device, LastConnection FROM connections WHERE
+                Id = @ConnectionId";
 
             using (var connection = GetConnection())
             using (var getMessagesCommand = new MySqlCommand(getMessagesQuery, connection))
@@ -343,7 +345,7 @@ namespace AIChatServer.Utils
                 {
                     if (reader.Read())
                     {
-                        return new ConnectionInfo(reader.GetInt32("Id"), reader.IsDBNull("UserId") ? defaultUserId : reader.GetInt32("UserId"), reader.GetString("Device"), reader.IsDBNull("LastOnline") ? null : reader.GetDateTime("LastOnline"));
+                        return new ConnectionInfo(reader.GetInt32("Id"), reader.IsDBNull("UserId") ? defaultUserId : reader.GetInt32("UserId"), reader.GetString("Device"), reader.IsDBNull("LastConnection") ? null : reader.GetDateTime("LastConnection"));
                     }
                 }
             }
@@ -352,7 +354,7 @@ namespace AIChatServer.Utils
 
         public static List<ConnectionInfo> GetAllUserConnections(int userId)
         {
-            string getMessagesQuery = @"SELECT Id, UserId, Device, LastOnline FROM connections WHERE
+            string getMessagesQuery = @"SELECT Id, UserId, Device, LastConnection FROM connections WHERE
                                        UserId = @UserId";
             List<ConnectionInfo> info = new List<ConnectionInfo>();
             using (var connection = GetConnection())
@@ -363,7 +365,7 @@ namespace AIChatServer.Utils
                 {
                     while (reader.Read())
                     {
-                        info.Add(new ConnectionInfo(reader.GetInt32("Id"), reader.GetInt32("UserId"), reader.GetString("Device"), reader.IsDBNull("LastOnline") ? null : reader.GetDateTime("LastOnline")));
+                        info.Add(new ConnectionInfo(reader.GetInt32("Id"), reader.GetInt32("UserId"), reader.GetString("Device"), reader.IsDBNull("LastConnection") ? null : reader.GetDateTime("LastConnection")));
                     }
                 }
             }
@@ -373,13 +375,13 @@ namespace AIChatServer.Utils
         public static int[] GetConnectionCount(int userId)
         {
             string getMessagesQuery = @"SELECT 
-    COUNT(*) AS DevicesCount, 
-    CASE 
-        WHEN COUNT(*) = 0 THEN 0
-        ELSE SUM(CASE WHEN LastOnline IS NULL THEN 1 ELSE 0 END)
-    END AS OnlineDevicesCount
-FROM connections 
-WHERE UserId = @UserId";
+                COUNT(*) AS DevicesCount, 
+                CASE 
+                WHEN COUNT(*) = 0 THEN 0
+                ELSE SUM(CASE WHEN LastConnection IS NULL THEN 1 ELSE 0 END)
+                END AS OnlineDevicesCount
+                FROM connections 
+                WHERE UserId = @UserId";
 
             using (var connection = GetConnection())
             using (var getMessagesCommand = new MySqlCommand(getMessagesQuery, connection))
@@ -555,9 +557,11 @@ WHERE UserId = @UserId";
         public static Chat CreateChat(int[] users, string type)
         {
             Chat chat = CreateChat(type);
-            chat.Users = users;
             foreach (int userId in users)
+            {
+                chat.UsersNames.Add(userId, "New Chat");
                 AddUserToChat(userId, chat.Id);
+            }
             return chat;
         }
 
@@ -747,16 +751,17 @@ WHERE UserId = @UserId";
 
             return userIds.ToArray();
         }
+
         public static ConnectionInfo RemoveConnection(int id)
         {
             string getConnectionQuery = @"
-    SELECT Id, UserId, Device, LastOnline 
-    FROM Connections 
-    WHERE Id = @Id";
+                SELECT Id, UserId, Device, LastConnection
+                FROM Connections 
+                WHERE Id = @Id";
 
             string removeConnectionQuery = @"
-    UPDATE Connections SET UserId = NULL 
-    WHERE Id = @Id";
+                UPDATE Connections SET UserId = NULL 
+                WHERE Id = @Id";
 
             using (var connection = GetConnection())
             {
@@ -795,9 +800,9 @@ WHERE UserId = @UserId";
         public static bool IsUserPremium(int userId)
         {
             string isPremiumQuery = @"
-            SELECT PremiumUntil 
-            FROM Users 
-            WHERE Id = @UserId AND PremiumUntil > NOW()";
+                SELECT PremiumUntil 
+                FROM Users 
+                WHERE Id = @UserId AND PremiumUntil > NOW()";
 
             using (var connection = GetConnection())
             {
@@ -812,17 +817,17 @@ WHERE UserId = @UserId";
                 }
             }
         }
+
         public static bool SetLastConnection(int connectionId, bool isOnline)
         {
             string updatePreferenceQuery = isOnline ? @"
-            UPDATE Connections
-            SET LastConnection = NULL, LastOnline = NULL
-            WHERE Id =@ConnectionId"
-            : @"
-            UPDATE Connections
-            SET LastOnline = COALESCE(LastOnline, NOW()),
-            LastConnection = NOW()
-            WHERE Id = @ConnectionId";
+                UPDATE Connections
+                SET LastConnection = NULL
+                WHERE Id = @ConnectionId"
+                : @"
+                UPDATE Connections SET
+                LastConnection = NOW()
+                WHERE Id = @ConnectionId";
 
             using (var connection = GetConnection())
             {
@@ -835,36 +840,15 @@ WHERE UserId = @UserId";
                 }
             }
         }
-        public static bool SetLastOnline(int connectionId, bool isOnline)
-        {
-            string updatePreferenceQuery = isOnline ? @"
-            UPDATE Connections
-            SET LastOnline = NULL
-            WHERE Id =@ConnectionId"
-            : @"
-            UPDATE Connections
-            SET LastOnline = NOW()
-            WHERE Id = @ConnectionId";
 
-            using (var connection = GetConnection())
-            {
-                using (var command = new MySqlCommand(updatePreferenceQuery, connection))
-                {
-                    command.Parameters.AddWithValue("@ConnectionId", connectionId);
-                    int result = command.ExecuteNonQuery();
-
-                    return result > 0;
-                }
-            }
-        }
-        public static (List<Chat>, List<Chat>) GetNewChats(int userId, DateTime lastOnline)
+        public static (List<ClientChat>, List<ClientChat>) GetNewChats(int userId, DateTime lastOnline)
         {
-            var chats = (new List<Chat>(), new List<Chat>());
-            string getMessagesQuery = @" SELECT c.Id, c.CreationTime, c.EndTime, c.Type
+            var chats = (new List<ClientChat>(), new List<ClientChat>());
+            string getMessagesQuery = @" SELECT c.Id, c.CreationTime, c.EndTime, uc.Name
                                         FROM Chats c
                                         JOIN UsersChats uc ON c.Id = uc.ChatId
                                         WHERE uc.UserId = @UserId 
-                                        AND (c.CreationTime > @LastOnline OR 
+                                        AND (uc.LastUpdate > @LastOnline OR 
                                              (c.EndTime IS NOT NULL AND c.EndTime > @LastOnline));";
 
             using (var connection = GetConnection())
@@ -878,14 +862,7 @@ WHERE UserId = @UserId";
                     {
                         while (reader.Read())
                         {
-                            Chat chat;
-                            chat = new Chat()
-                            {
-                                Id = reader.GetInt32("Id"),
-                                CreationTime = reader.GetDateTime("CreationTime"),
-                                EndTime = reader.IsDBNull("EndTime") ? null : reader.GetDateTime("EndTime"),
-                                Type = reader.GetString("Type")
-                            };
+                            ClientChat chat = new ClientChat(reader.GetInt32("Id"), reader.GetString("Name"), reader.GetDateTime("CreationTime"), reader.IsDBNull("EndTime") ? null : reader.GetDateTime("EndTime"));
                             if (chat.CreationTime > lastOnline)
                             {
                                 chats.Item1.Add(chat);
@@ -941,6 +918,7 @@ WHERE UserId = @UserId";
             }
             return messages;
         }
+
         public static (List<int>, List<UserData>, List<bool>) LoadUsers(int chatId)
         {
             (List<int>, List<UserData>, List<bool>) data = (new List<int>(), new List<UserData>(), new List<bool>());
@@ -949,7 +927,7 @@ WHERE UserId = @UserId";
     ud.*,
     CASE WHEN EXISTS (
         SELECT 1 FROM connections 
-        WHERE UserId = ud.UserId AND LastOnline IS NULL
+        WHERE UserId = ud.UserId AND LastConnection IS NULL
     ) THEN 1 ELSE 0 END AS IsOnline
 FROM
     userdata ud
@@ -984,12 +962,13 @@ WHERE
             }
             return data;
         }
+
         public static Dictionary<int, Chat> GetChats()
         {
             var chats = new Dictionary<int, Chat>();
 
             string getChatsQuery = "SELECT * FROM Chats WHERE EndTime IS NULL";
-            string getUserChatsQuery = "SELECT ChatId, UserId FROM userschats WHERE ChatId = @ChatId";
+            string getUserChatsQuery = "SELECT UserId, Name FROM userschats WHERE ChatId = @ChatId";
 
             using (var connection = GetConnection())
             {
@@ -1008,7 +987,7 @@ WHERE
                                         Id = reader.GetInt32("Id"),
                                         CreationTime = reader.GetDateTime("CreationTime"),
                                         Type = reader.GetString("Type"),
-                                        Users = Array.Empty<int>()
+                                        UsersNames = new Dictionary<int, string>()
                                     };
                                     chats.Add(chat.Id, chat);
                                 }
@@ -1022,16 +1001,13 @@ WHERE
                             {
                                 getUserChatsCommand.Parameters["@ChatId"].Value = chat.Id;
 
-                                var userIds = new List<int>();
                                 using (var reader = getUserChatsCommand.ExecuteReader())
                                 {
                                     while (reader.Read())
                                     {
-                                        userIds.Add(reader.GetInt32("UserId"));
+                                         chat.UsersNames.Add(reader.GetInt32("UserId"), reader.GetString("Name"));
                                     }
                                 }
-
-                                chat.Users = userIds.ToArray();
                             }
                         }
 
@@ -1047,6 +1023,7 @@ WHERE
             }
 
         }
+
         public static bool UpdateNotifications(int userId, bool value)
         {
             string updateQuery = @"
@@ -1089,6 +1066,7 @@ WHERE
                 }
             }
         }
+
         public static AIMessage AddAIMessage(AIMessage aIMessage, string type)
         {
             string query = @"
@@ -1111,6 +1089,7 @@ WHERE
                 }
             }
         }
+
         public static Dictionary<int, AIMessageDispatcher> GetAIMessagesByChat(List<int> chatIds)
         {
             var dispatchers = new Dictionary<int, AIMessageDispatcher>();
@@ -1180,6 +1159,7 @@ WHERE
 
             return dispatchers;
         }
+
         public static bool DeleteAIMessages(List<AIMessage> messages)
         {
             if (messages == null || messages.Count == 0)
@@ -1202,6 +1182,7 @@ WHERE
                 }
             }
         }
+
         public static bool AddChatTokenUsage(int chatId)
         {
             string query = @"
@@ -1218,6 +1199,7 @@ WHERE
                 }
             }
         }
+
         public static bool UseToken(int chatId, int tokenCount)
         {
             string query = @"
@@ -1235,6 +1217,95 @@ WHERE
                     return rowsAffected > 0;
                 }
             }
+        }
+
+        public static bool UpdateChatName(int chatId, int userId, string name)
+        {
+            string updateChatQuery = @"
+            UPDATE UsersChats
+            SET Name = @Name
+            WHERE UserId = @UserId AND ChatId = @ChatId";
+
+            using (var connection = GetConnection())
+            {
+                using (var command = new MySqlCommand(updateChatQuery, connection))
+                {
+                    command.Parameters.AddWithValue("@Name", name);
+                    command.Parameters.AddWithValue("@UserId", userId);
+                    command.Parameters.AddWithValue("@ChatId", chatId);
+
+                    int result = command.ExecuteNonQuery();
+                    return result > 0;
+                }
+            }
+        }
+
+        public static bool UpdateNotificationToken(int id, string token)
+        {
+            string updateQuery = @"
+                UPDATE Connections
+                SET NotificationToken = @NotificationToken
+                WHERE Id = @Id";
+
+            using (var connection = GetConnection())
+            {
+                using (var command = new MySqlCommand(updateQuery, connection))
+                {
+                    command.Parameters.AddWithValue("@NotificationToken", token);
+                    command.Parameters.AddWithValue("@Id", id);
+
+                    int rowsAffected = command.ExecuteNonQuery();
+                    return rowsAffected > 0;
+                }
+            }
+        }
+
+        public static Dictionary<int, List<string>> GetNotificationTokens(int[] userIds)
+        {
+            var result = new Dictionary<int, List<string>>();
+
+            if (userIds == null || userIds.Length == 0)
+                return result;
+
+            string query = @"
+        SELECT UserId, NotificationToken 
+        FROM connections 
+        WHERE UserId IN ({0})";
+
+            var paramNames = string.Join(",", userIds.Select((_, i) => $"@id{i}"));
+            var parameters = userIds.Select((id, i) => new MySqlParameter($"@id{i}", id)).ToArray();
+
+            using (var connection = GetConnection())
+            using (var command = new MySqlCommand(string.Format(query, paramNames), connection))
+            {
+                command.Parameters.AddRange(parameters);
+
+                using (var reader = command.ExecuteReader())
+                {
+                    while (reader.Read())
+                    {
+                        int userId = reader.GetInt32(0);
+
+                        if (!reader.IsDBNull(1))
+                        {
+                            string token = reader.GetString(1);
+
+                            if (!result.ContainsKey(userId))
+                                result[userId] = new List<string>();
+
+                            result[userId].Add(token);
+                        }
+                    }
+                }
+            }
+
+            foreach (var userId in userIds)
+            {
+                if (!result.ContainsKey(userId))
+                    result[userId] = new List<string>();
+            }
+
+            return result;
         }
     }
 }
