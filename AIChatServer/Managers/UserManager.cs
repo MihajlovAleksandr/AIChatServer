@@ -16,6 +16,7 @@ namespace AIChatServer.Managers
         public event EventHandler<bool> OnConnectionEvent;
         public event Func<int, bool> IsChatSearching;
         private readonly string serverURL;
+        private readonly string googleClientId;
 
 
         public UserManager()
@@ -26,6 +27,8 @@ namespace AIChatServer.Managers
                 .Build();
 
             var aiSettings = configuration.GetSection("ServerSettings");
+            var googleSettings = configuration.GetSection("Google");
+            googleClientId = googleSettings["client_id"] ?? throw new ArgumentNullException("apiKey");
             serverURL = aiSettings["URL"] ?? throw new ArgumentNullException("URL");
             connectionManager = new ConnectionManager();
             connectionManager.OnConnected += OnUserConnected;
@@ -161,7 +164,7 @@ namespace AIChatServer.Managers
         }
         private UnknownUser GetUnknownUser(Connection connection, int id)
         {
-            UnknownUser user = new UnknownUser(connection, id);
+            UnknownUser user = new UnknownUser(connection, id, googleClientId);
             user.UserChanged += KnowUser;
             user.Disconnected += DissconnectUser;
             user.SendCommand(new Command("Logout"));
@@ -170,7 +173,7 @@ namespace AIChatServer.Managers
         public void CreateUnknownUser(Connection connection)
         {
             int userId = GetUnknownUserId();
-            UnknownUser user = new UnknownUser(connection, userId);
+            UnknownUser user = new UnknownUser(connection, userId, googleClientId);
             user.UserChanged += KnowUser;
             user.Disconnected += DissconnectUser;
             connectionManager.ConnectUser(userId, user);

@@ -82,7 +82,7 @@ namespace AIChatServer.Entities.User.ServerUsers
                     {
                         Connection.Connection connection = connections[i];
                         connections.Remove(connection);
-                        return connection;
+                       return connection;
                     }
                 }
                 return null;

@@ -31,6 +31,7 @@ namespace AIChatServer.Utils
                     u.Password,
                     u.PremiumUntil AS Premium,
                     u.Points,
+                    u.GoogleId,
                     ud.Id AS UserDataId,
                     ud.Name,
                     ud.Gender,
@@ -62,8 +63,9 @@ namespace AIChatServer.Utils
                             {
                                 Id = reader.GetInt32("Id"),
                                 Email = reader.GetString("Email"),
-                                Password = reader.GetString("Password"),
+                                Password = reader.IsDBNull("Password") ? null : reader.GetString("Password"),
                                 Premium = reader.IsDBNull("Premium") ? null : reader.GetDateTime("Premium"),
+                                GoogleId = reader.IsDBNull("GoogleId")?null:reader.GetString("GoogleId"),
                                 Points = reader.GetInt32("Points"),
                                 UserData = new UserData
                                 {
@@ -91,7 +93,7 @@ namespace AIChatServer.Utils
             }
         }
 
-        private static User GetUserByEmail(string email)
+        public static User GetUserByEmail(string email)
         {
             string getUsersQuery = @"
                 SELECT 
@@ -100,6 +102,7 @@ namespace AIChatServer.Utils
                     u.Password,
                     u.PremiumUntil AS Premium,
                     u.Points,
+                    u.GoogleId,
                     ud.Id AS UserDataId,
                     ud.Name,
                     ud.Gender,
@@ -131,8 +134,9 @@ namespace AIChatServer.Utils
                             {
                                 Id = reader.GetInt32("Id"),
                                 Email = reader.GetString("Email"),
-                                Password = reader.GetString("Password"),
+                                Password = reader.IsDBNull("Password") ? null : reader.GetString("Password"),
                                 Premium = reader.IsDBNull("Premium") ? null : reader.GetDateTime("Premium"),
+                                GoogleId = reader.IsDBNull("GoogleId")?null:reader.GetString("GoogleId"),
                                 Points = reader.GetInt32("Points"),
                                 UserData = new UserData
                                 {
@@ -160,11 +164,48 @@ namespace AIChatServer.Utils
             }
         }
 
+        public static bool VerifyGoogleId(string email, string googleId)
+        {
+            string getUsersQuery = @"
+                SELECT COUNT(*) as count
+                FROM 
+                    Users
+                WHERE
+                    Email = @email AND GoogleId = @googleId";
+
+            using (var connection = GetConnection())
+            {
+                using (var getUsersCommand = new MySqlCommand(getUsersQuery, connection))
+                {
+                    getUsersCommand.Parameters.AddWithValue("@email", email);
+                    getUsersCommand.Parameters.AddWithValue("@googleId", googleId);
+
+
+                    using (var reader = getUsersCommand.ExecuteReader())
+                    {
+                        if (reader.Read())
+                        {
+
+                            if (reader.GetInt32("count") > 0)
+                            {
+                                return true;
+                            }
+                        }
+                    }
+                }
+            }
+            return false;
+        }
+
         public static User LoginIn(string email, string password)
         {
             User user = GetUserByEmail(email);
             if (user != null)
             {
+                if (user.Password == null)
+                {
+                    return user;
+                }
                 if (VerifyPassword(password, user.Password))
                 {
                     return user;
@@ -191,7 +232,7 @@ namespace AIChatServer.Utils
             }
         }
 
-        public static int? AddUser(User user, int connectionId)
+        public static int? AddUser(User user,int connectionId)
         {
             using (var connection = GetConnection())
             {
@@ -199,8 +240,14 @@ namespace AIChatServer.Utils
                 {
                     try
                     {
-                        int userId = InsertUser(user, connection, transaction);
-                        InsertUserData(user.UserData, userId, connection, transaction);
+                        int userId;
+                        RegistrationType? type = user.GetRegistrationType();
+                        if (type == RegistrationType.Password)
+                            userId = InsertUserByPassword(user, connection, transaction);
+                        else if (type == RegistrationType.Google)
+                            userId = InsertUserByGoogleId(user, connection, transaction);
+                        else throw new ArgumentException("Check registration type");
+                            InsertUserData(user.UserData, userId, connection, transaction);
                         int preferenceId = InsertPreference(user.Preference, userId, connection, transaction);
                         UpdateConnection(connectionId, userId, connection, transaction);
                         InsertNotifications(userId, connection, transaction);
@@ -217,7 +264,7 @@ namespace AIChatServer.Utils
             }
         }
 
-        private static int InsertUser(User user, MySqlConnection connection, MySqlTransaction transaction)
+        private static int InsertUserByPassword(User user, MySqlConnection connection, MySqlTransaction transaction)
         {
             string insertUserQuery = @"
         INSERT INTO Users (Email, Password, PremiumUntil, Points) 
@@ -228,6 +275,24 @@ namespace AIChatServer.Utils
             {
                 command.Parameters.AddWithValue("@Email", user.Email);
                 command.Parameters.AddWithValue("@Password", HashPassword(user.Password));
+                command.Parameters.AddWithValue("@PremiumUntil", user.Premium);
+                command.Parameters.AddWithValue("@Points", user.Points);
+
+                return Convert.ToInt32(command.ExecuteScalar());
+            }
+        }
+
+        private static int InsertUserByGoogleId(User user, MySqlConnection connection, MySqlTransaction transaction)
+        {
+            string insertUserQuery = @"
+        INSERT INTO Users (Email, GoogleId, PremiumUntil, Points) 
+        VALUES (@Email, @GoogleId, @PremiumUntil, @Points);
+        SELECT LAST_INSERT_ID();";
+
+            using (var command = new MySqlCommand(insertUserQuery, connection, transaction))
+            {
+                command.Parameters.AddWithValue("@Email", user.Email);
+                command.Parameters.AddWithValue("@GoogleId", user.GoogleId);
                 command.Parameters.AddWithValue("@PremiumUntil", user.Premium);
                 command.Parameters.AddWithValue("@Points", user.Points);
 
@@ -351,7 +416,7 @@ namespace AIChatServer.Utils
             }
             return null;
         }
-
+        
         public static List<ConnectionInfo> GetAllUserConnections(int userId)
         {
             string getMessagesQuery = @"SELECT Id, UserId, Device, LastConnection FROM connections WHERE

@@ -65,10 +65,15 @@ namespace AIChatServer.Managers
             double randomValue = random.NextDouble() * 100;
             if (randomValue < probabilityAIChat)
             {
+                Console.WriteLine("CreateRandomAIChat");
                 await Task.Delay(random.Next(500, 10000));
                 CreateAIChat(user, "random");
             }
-            else CreateUserChat(user, "random");
+            else 
+            {
+                Console.WriteLine("CreateRandomUserChat");
+                CreateUserChat(user, "random"); 
+            }
         }
         private void CreateAIChat(User user, string type= "ai")
         {
