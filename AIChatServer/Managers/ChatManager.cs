@@ -26,11 +26,11 @@ namespace AIChatServer.Managers
             this.aiId = aiId;
             this.probabilityAIChat = probabilityAIChat;
         }
-        public int[] GetUsersInChat(int chat)
+        public List<int> GetUsersInChat(int chat)
         {
             lock (syncObjChats)
             {
-                return chatList[chat].Users;
+                return chatList[chat].UsersNames.Keys.ToList();
             }
         }
 
@@ -65,10 +65,15 @@ namespace AIChatServer.Managers
             double randomValue = random.NextDouble() * 100;
             if (randomValue < probabilityAIChat)
             {
+                Console.WriteLine("CreateRandomAIChat");
                 await Task.Delay(random.Next(500, 10000));
                 CreateAIChat(user, "random");
             }
-            else CreateUserChat(user, "random");
+            else 
+            {
+                Console.WriteLine("CreateRandomUserChat");
+                CreateUserChat(user, "random"); 
+            }
         }
         private void CreateAIChat(User user, string type= "ai")
         {
@@ -125,7 +130,7 @@ namespace AIChatServer.Managers
             List<int> chats = new List<int>();
             foreach(var item in chatList)
             {
-                if (item.Value.Users.Contains(userId))
+                if (item.Value.UsersNames.TryGetValue(userId, out _))
                 {
                     chats.Add(item.Key);
                 }
@@ -137,6 +142,15 @@ namespace AIChatServer.Managers
             if(chatList.TryGetValue(chatId, out Chat? chat))
             {
                 return chat.Type;
+            }
+            return null;
+        }
+        public string? GetChatName(int chatId, int userId)
+        {
+            if(chatList.TryGetValue(chatId, out Chat? chat))
+            {
+                if(chat.UsersNames.TryGetValue(userId, out string? name))
+                    return name;
             }
             return null;
         }

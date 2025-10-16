@@ -2,6 +2,7 @@
 using AIChatServer.Entities.User;
 using AIChatServer.Entities.User.ServerUsers;
 using AIChatServer.Utils;
+using Microsoft.Extensions.Configuration;
 using System.Net;
 using System.Net.WebSockets;
 
@@ -14,10 +15,21 @@ namespace AIChatServer.Managers
         public event EventHandler<Command> CommandGot;
         public event EventHandler<bool> OnConnectionEvent;
         public event Func<int, bool> IsChatSearching;
+        private readonly string serverURL;
+        private readonly string googleClientId;
 
 
         public UserManager()
         {
+            var configuration = new ConfigurationBuilder()
+                .SetBasePath(Directory.GetCurrentDirectory())
+                .AddJsonFile("appsettings.json")
+                .Build();
+
+            var aiSettings = configuration.GetSection("ServerSettings");
+            var googleSettings = configuration.GetSection("Google");
+            googleClientId = googleSettings["client_id"] ?? throw new ArgumentNullException("apiKey");
+            serverURL = aiSettings["URL"] ?? throw new ArgumentNullException("URL");
             connectionManager = new ConnectionManager();
             connectionManager.OnConnected += OnUserConnected;
             Task.Run(GetNewConnections);
@@ -32,7 +44,7 @@ namespace AIChatServer.Managers
         private async void GetNewConnections()
         {
             HttpListener httpListener = new HttpListener();
-            httpListener.Prefixes.Add("https://192.168.69.151:8888/");
+            httpListener.Prefixes.Add(serverURL);
             try
             {
                 httpListener.Start();
@@ -152,7 +164,7 @@ namespace AIChatServer.Managers
         }
         private UnknownUser GetUnknownUser(Connection connection, int id)
         {
-            UnknownUser user = new UnknownUser(connection, id);
+            UnknownUser user = new UnknownUser(connection, id, googleClientId);
             user.UserChanged += KnowUser;
             user.Disconnected += DissconnectUser;
             user.SendCommand(new Command("Logout"));
@@ -161,7 +173,7 @@ namespace AIChatServer.Managers
         public void CreateUnknownUser(Connection connection)
         {
             int userId = GetUnknownUserId();
-            UnknownUser user = new UnknownUser(connection, userId);
+            UnknownUser user = new UnknownUser(connection, userId, googleClientId);
             user.UserChanged += KnowUser;
             user.Disconnected += DissconnectUser;
             connectionManager.ConnectUser(userId, user);

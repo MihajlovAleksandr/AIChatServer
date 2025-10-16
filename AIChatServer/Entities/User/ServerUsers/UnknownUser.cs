@@ -1,5 +1,6 @@
 ﻿using AIChatServer.Entities.Connection;
 using AIChatServer.Utils;
+using Google.Apis.Auth;
 
 namespace AIChatServer.Entities.User.ServerUsers
 {
@@ -7,16 +8,18 @@ namespace AIChatServer.Entities.User.ServerUsers
     {
         public event Action<UnknownUser> UserChanged;
         private VerificationCode verificationCode;
+        private readonly string googleClientId;
         public int Id { get; private set; }
-        public UnknownUser(Connection.Connection connection, int id) : base(connection)
+        public UnknownUser(Connection.Connection connection, int id, string googleClientId) : base(connection)
         {
             User = new User();
             User.Id = id;
             Id = id;
             base.GotCommand += (s, e) => GotCommand(e);
             Disconnected += (s, e) => { DB.DeleteUnknownConnection(connection.Id); };
+            this.googleClientId = googleClientId;
         }
-        private void GotCommand(Command command) {
+        private async void GotCommand(Command command) {
 
             Console.WriteLine(command);
             switch (command.Operation)
@@ -32,6 +35,13 @@ namespace AIChatServer.Entities.User.ServerUsers
                     User = DB.LoginIn(email, password);
                     if (User != null)
                     {
+                        if(User.GetRegistrationType() == RegistrationType.Google)
+                        {
+                            Command loginInFailed = new Command("UseOtherLoginInService");
+                            loginInFailed.AddData("service", "Google");
+                            SendCommand(loginInFailed);
+                            return;
+                        }
                         KnowUser();
                     }
                     else
@@ -44,7 +54,7 @@ namespace AIChatServer.Entities.User.ServerUsers
                     if (DB.IsEmailFree(email))
                     {
                         password = command.GetData<string>("password");
-                        User = new User(email, password);
+                        User = new User(email, password, RegistrationType.Password);
                         verificationCode = new VerificationCode();
                         Console.WriteLine(verificationCode.Code);
                         EmailManager.SendVerificationCode(User.Email, verificationCode.Code);
@@ -76,6 +86,41 @@ namespace AIChatServer.Entities.User.ServerUsers
                     
                     KnowUser();
                     break;
+                case "SendGoogleTokenCommand":
+                    string token = command.GetData<string>("token");
+                    GoogleJsonWebSignature.Payload payload = await ValidateGoogleToken(token);
+
+                    if (payload == null)
+                    {
+                        Console.WriteLine("payload == null");
+                        break;
+                    }
+                    if(payload.Audience.ToString() != googleClientId)
+                    {
+                        Console.WriteLine($"payload.Audience.ToString() != clientId:\n{payload.Audience.ToString()} != {googleClientId}");
+                        break;
+                    }
+                    User = DB.GetUserByEmail(payload.Email);
+                    if (User == null)
+                    {
+                        User = new User(payload.Email, payload.Subject, RegistrationType.Google);
+                        SendCommand(command.Sender, new Command("GoogleRegistrationSuccess"));
+                        return;
+                    }
+                    else if (User.GetRegistrationType() == RegistrationType.Password)
+                    {
+                        Command loginInFailed = new Command("UseOtherLoginInService");
+                        loginInFailed.AddData("service", "Password");
+                        SendCommand(loginInFailed);
+                        return;
+                    }
+                    if (!DB.VerifyGoogleId(payload.Email, payload.Subject))
+                    {
+                        return;
+                    }
+                    KnowUser();
+                    Console.WriteLine($"Email: {payload.Email}\n Name: {payload.Name}");
+                    break;
             }
         }
         private void KnowUser()
@@ -85,6 +130,23 @@ namespace AIChatServer.Entities.User.ServerUsers
         public void SetUser(User user)
         {
             User = user;
+        }
+        private async Task<GoogleJsonWebSignature.Payload> ValidateGoogleToken(string idToken)
+        {
+            try
+            {
+                var settings = new GoogleJsonWebSignature.ValidationSettings()
+                {
+                    ForceGoogleCertRefresh = true,
+                    ExpirationTimeClockTolerance = TimeSpan.FromMinutes(5)
+                };
+
+                return await GoogleJsonWebSignature.ValidateAsync(idToken, settings);
+            }
+            catch
+            {
+                return null;
+            }
         }
     }
 }

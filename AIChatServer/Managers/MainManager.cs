@@ -14,10 +14,12 @@ namespace AIChatServer.Managers
         private ChatManager chatManager;
         private UserManager userManager;
         private AIManager aIManager;
+        private NotificationManager notificationManager;
         public MainManager()
         {
+            notificationManager = new NotificationManager();
             int aiId = 1;
-            chatManager = new ChatManager(aiId, 100);
+            chatManager = new ChatManager(aiId, 30);
             userManager = new UserManager();
             aIManager = new AIManager(aiId, new DeepSeekController(70), DB.GetAIMessagesByChat(chatManager.GetUserChats(aiId)));
             userManager.CommandGot += OnCommandGot;
@@ -35,7 +37,7 @@ namespace AIChatServer.Managers
             command.AddData("isOnline", isOnline);
             userManager.SendCommand(DB.GetUsersInSameChats(serverUser.User.Id), command);
         }
-        
+
 
         private async void OnCommandGot(object? sender, Command command)
         {
@@ -69,11 +71,11 @@ namespace AIChatServer.Managers
                     break;
                 case "SyncDB":
                     int syncDBUserId = knownUser.User.Id;
-                    ServerUser.SendCommand(command.Sender , userManager.GetSyncDBCommand(syncDBUserId, DateTime.MinValue));
+                    ServerUser.SendCommand(command.Sender, userManager.GetSyncDBCommand(syncDBUserId, DateTime.MinValue));
                     break;
                 case "LoadUsersInChat":
                     int chatId = command.GetData<int>("chatId");
-                    ServerUser.SendCommand(command.Sender,GetLoadUsersInChatCommand(chatId));
+                    ServerUser.SendCommand(command.Sender, GetLoadUsersInChatCommand(chatId));
                     break;
                 case "GetSettingsInfo":
                     Command getSettingsInfoCommand = new Command("GetSettingsInfo");
@@ -108,7 +110,7 @@ namespace AIChatServer.Managers
                     int connectinId = command.GetData<int>("connectionId");
                     if (connectinId == default) connectinId = command.Sender.Id;
                     ConnectionInfo connectionInfo = DB.RemoveConnection(connectinId);
-                    if (connectionInfo!=null)
+                    if (connectionInfo != null)
                     {
                         knownUser.SendCommand(connectinId, new Command("Logout"));
                         Connection? connection = knownUser.RemoveConnection(connectinId);
@@ -124,7 +126,7 @@ namespace AIChatServer.Managers
                     }
                     break;
                 case "ChangePassword":
-                    if(DB.VerifyPassword(command.GetData<string>("currentPassword"), knownUser.User.Password))
+                    if (DB.VerifyPassword(command.GetData<string>("currentPassword"), knownUser.User.Password))
                     {
                         string newPassword = DB.ChangePassword(knownUser.User.Id, command.GetData<string>("newPassword"));
                         if (!string.IsNullOrEmpty(newPassword))
@@ -145,7 +147,7 @@ namespace AIChatServer.Managers
                     string token = command.GetData<string>("token");
                     if (TokenManager.ValidateEntryToken(token, out int userId))
                     {
-                        if(!userManager.KnowUser(userId, knownUser.User))
+                        if (!userManager.KnowUser(userId, knownUser.User))
                         {
                             knownUser.SendCommand(new Command("LoginInViaQRFailed"));
                         }
@@ -161,37 +163,49 @@ namespace AIChatServer.Managers
                     emailNotificationsCommand.AddData("enabled", emailNotificationsEnabled);
                     knownUser.SendCommand(emailNotificationsCommand);
                     break;
-                case "MainActivityState":
-                    DB.SetLastOnline(command.Sender.Id, command.GetData<bool>("isOnline"));
+                case "UpdateChatName":
+                    int updateChatNameId = command.GetData<int>("chatId");
+                    string updateChatName = command.GetData<string>("name");
+                    DB.UpdateChatName(knownUser.User.Id, updateChatNameId, updateChatName);
+                    Command updateChatNameCommand = new Command("UpdateChatName");
+                    updateChatNameCommand.AddData("chatId", updateChatNameId);
+                    updateChatNameCommand.AddData("name", updateChatName);
+                    knownUser.SendCommand(updateChatNameCommand);
+                    break;
+                case "UpdateNotificationToken":
+                    string notificationToken = command.GetData<string>("token");
+                    DB.UpdateNotificationToken(command.Sender.Id, notificationToken);
                     break;
             }
         }
-        private void OnChatCreated(Chat chat)
+        private async void OnChatCreated(Chat chat)
         {
             if (chat.ContainsAI(aIManager.AIId))
             {
                 aIManager.CreateDialog(chat.Id);
             }
+            await SendChatNotificationAsync(chat);
             Command command = new Command("CreateChat");
-            command.AddData("chat", chat);
-            userManager.SendCommand(chat.Users, command);
+            command.AddData("chat", new ClientChat(chat, "New Chat"));
+            userManager.SendCommand(chat.UsersNames.Keys.ToArray(), command);
         }
-        private void OnChatEnded(Chat chat)
+        private async void OnChatEnded(Chat chat)
         {
             if (chat.ContainsAI(aIManager.AIId))
             {
                 aIManager.EndDialog(chat.Id);
             }
+            await SendChatNotificationAsync(chat);
             Command command = new Command("EndChat");
-            command.AddData("chat", chat);
-            userManager.SendCommand(chat.Users, command);
+            command.AddData("chat", new ClientChat(chat));
+            userManager.SendCommand(chat.UsersNames.Keys.ToArray(), command);
         }
         private Command GetLoadUsersInChatCommand(int chatId)
         {
             Command command = new Command("LoadUsersInChat");
             var data = DB.LoadUsers(chatId);
             int aiIndex = data.Item1.IndexOf(aIManager.AIId);
-            string chatType = chatManager.GetChatType(chatId);
+            string? chatType = chatManager.GetChatType(chatId);
             if (aiIndex != -1)
             {
                 data.Item3[aiIndex] = true;
@@ -209,24 +223,67 @@ namespace AIChatServer.Managers
         private async Task SendMessageAsync(Message message)
         {
             message = DB.SendMessage(message);
-            int[] users = chatManager.GetUsersInChat(message.Chat);
+            List<int> users = chatManager.GetUsersInChat(message.Chat);
             Command sendMessageCommand = new Command("SendMessage");
             sendMessageCommand.AddData("message", message);
-            userManager.SendCommand(users, sendMessageCommand);
+            userManager.SendCommand(users.ToArray(), sendMessageCommand);
+            users.Remove(message.Sender);
+            await SendMessageNotification(users, message);
             if (users.Contains(aIManager.AIId))
             {
                 await aIManager.SendMessageAsync(message.Chat, message.Text);
             }
         }
-        private void OnAISendMessage(Message message)
+        private async void OnAISendMessage(Message message)
         {
-            message = DB.SendMessage(message);
-            int[] allUsers = chatManager.GetUsersInChat(message.Chat);
-            int[] users = allUsers.Where(user => user != aIManager.AIId).ToArray();
-            Command sendMessageCommand = new Command("SendMessage");
-            sendMessageCommand.AddData("message", message);
-            userManager.SendCommand(users, sendMessageCommand);
+            await SendMessageAsync(message);
         }
+        private async Task SendMessageNotification(List<int> users, Message message)
+        {
+            var allTokens = DB.GetNotificationTokens(users.ToArray());
+            for (int i = 0; i < users.Count; i++)
+            {
+                if (allTokens.TryGetValue(users[i], out List<string>? userTokens))
+                {
+                    string? name = chatManager.GetChatName(message.Chat, users[i]);
+                    if (name != null)
+                    {
+                        for (int j = 0; j < userTokens.Count; j++)
+                        {
+                            string token = userTokens[j];
+                            if (token != null)
+                            {
+                                await notificationManager.SendMessageToDevice(token, name, message.Text, message.Chat, false);
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        private async Task SendChatNotificationAsync(Chat chat)
+        {
+            var users = chat.UsersNames.Keys.ToList();
+            var allTokens = DB.GetNotificationTokens(users.ToArray());
+            for (int i = 0; i < users.Count; i++)
+            {
+                if (allTokens.TryGetValue(users[i], out List<string>? userTokens))
+                {
+                    if (chat.UsersNames.TryGetValue(users[i], out string? name)) { 
+                        for (int j = 0; j < userTokens.Count; j++)
+                        {
+                            string token = userTokens[j];
+                            if (token != null)
+                            {
+                                if (chat.EndTime == null)
+                                    await notificationManager.SendMessageToDevice(token, name, "new_chat", chat.Id, true);
+                                else
+                                    await notificationManager.SendMessageToDevice(token, name, "end_chat", -1, true);
 
+                            }
+                        }
+                    }
+                }
+            }
+        }
     }
 }

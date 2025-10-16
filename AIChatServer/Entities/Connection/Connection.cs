@@ -12,13 +12,13 @@ namespace AIChatServer.Entities.Connection
         public event EventHandler<Command> CommandGot
         {
             add { CommandGotHandler = value; }
-            remove { CommandGotHandler = null; }
+            remove { CommandGotHandler = value; }
         }
         private event EventHandler DisconnectedHandler;
         public event EventHandler Disconnected
         {
             add { DisconnectedHandler = value; }
-            remove { DisconnectedHandler = null; }
+            remove { DisconnectedHandler = value; }
         }
         public Connection(int id, WebSocket webSocket)
         {
@@ -27,50 +27,79 @@ namespace AIChatServer.Entities.Connection
             this.webSocket = webSocket;
             Task.Run(() => { HandleClient(webSocket); });
         }
+
         public Connection(string device, WebSocket webSocket)
         {
             Console.WriteLine("Create Connection");
             this.webSocket = webSocket;
             Task.Run(() => { HandleClient(webSocket); });
         }
+
         private async void HandleClient(WebSocket webSocket)
         {
-            byte[] buffer;
-            while (webSocket.State == WebSocketState.Open)
+            var buffer = new byte[1024 * 4];
+            var receivedData = new List<byte>();
+
+            try
             {
-                buffer = new byte[1024];
-                try
+                while (webSocket.State == WebSocketState.Open)
                 {
-                    WebSocketReceiveResult result = await webSocket.ReceiveAsync(new ArraySegment<byte>(buffer), CancellationToken.None);
+                    var result = await webSocket.ReceiveAsync(new ArraySegment<byte>(buffer), CancellationToken.None);
 
                     if (result.MessageType == WebSocketMessageType.Close)
                     {
                         break;
                     }
-                    else
+                    receivedData.AddRange(new ArraySegment<byte>(buffer, 0, result.Count));
+                    if (result.EndOfMessage)
                     {
-                        Console.WriteLine(Encoding.UTF8.GetString(buffer));
-                        Command command = JsonHelper.Deserialize<Command>(buffer);
-                        command.SetSender(this);
-                        CommandGotHandler.Invoke(this, command);
+                        try
+                        {
+                            var message = Encoding.UTF8.GetString(receivedData.ToArray());
+                            Console.WriteLine(message);
+
+                            Command command = JsonHelper.Deserialize<Command>(receivedData.ToArray());
+                            command.SetSender(this);
+                            CommandGotHandler?.Invoke(this, command);
+                        }
+                        catch (Exception e)
+                        {
+                            Console.WriteLine("Ошибка при обработке команды: " + e.Message);
+                        }
+                        finally
+                        {
+                            receivedData.Clear();
+                        }
                     }
                 }
-                catch (Exception e)
-                {
-                    Console.WriteLine("Ошибка при обмене данными: " + e.Message);
-                    break;
-                }
             }
-            await webSocket.CloseAsync(WebSocketCloseStatus.NormalClosure, "Закрытие соединения", CancellationToken.None);
-            DisconnectedHandler?.Invoke(this, new EventArgs());
-            Console.WriteLine("Клиент отключился.");
+            catch (Exception e)
+            {
+                Console.WriteLine("Ошибка при обмене данными: " + e.Message);
+            }
+            finally
+            {
+                if (webSocket.State == WebSocketState.Open || webSocket.State == WebSocketState.CloseReceived)
+                {
+                    await webSocket.CloseAsync(WebSocketCloseStatus.NormalClosure, "Закрытие соединения", CancellationToken.None);
+                }
+                DisconnectedHandler?.Invoke(this, EventArgs.Empty);
+                Console.WriteLine("Клиент отключился.");
+            }
         }
 
-        public async void SendCommand(byte[] command)
+        public async Task SendCommand(byte[] command)
         {
             try
             {
-                await webSocket.SendAsync(new ArraySegment<byte>(command), WebSocketMessageType.Text, true, CancellationToken.None);
+                if (webSocket.State == WebSocketState.Open)
+                {
+                    await webSocket.SendAsync(
+                        new ArraySegment<byte>(command),
+                        WebSocketMessageType.Text,
+                        true,
+                        CancellationToken.None);
+                }
             }
             catch (Exception ex)
             {
