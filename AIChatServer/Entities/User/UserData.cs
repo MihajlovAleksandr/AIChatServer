@@ -1,22 +1,15 @@
-﻿using Newtonsoft.Json;
-using System.Text.Json;
-
-namespace AIChatServer.Entities.User
+﻿namespace AIChatServer.Entities.User
 {
     public class UserData
     {
-        [JsonProperty("id")]
-        public int Id { get; set; }
-        [JsonProperty("gender")]
-        public char Gender { get; set; }
-        [JsonProperty("name")]
+        public Guid Id { get; set; }
+        public Gender Gender { get; set; }
         public string Name { get; set; }
-        [JsonProperty("age")]
         public int Age { get; set; }
 
         public bool IsFits(Preference preference)
         {
-            if (preference.Gender[0] == Gender || preference.Gender=="Any")
+            if (IsGenderMatchs(Gender, preference.Gender) || preference.Gender==PreferenceGender.Any)
             {
                 if (Age >= preference.MinAge && Age <= preference.MaxAge)
                 {
@@ -25,6 +18,18 @@ namespace AIChatServer.Entities.User
             }
             return false;
         }
+
+        private bool IsGenderMatchs(Gender gender, PreferenceGender preferenceGender)
+        {
+            return preferenceGender switch
+            {
+                PreferenceGender.Any => true,
+                PreferenceGender.Male => gender == Gender.Male,
+                PreferenceGender.Female => gender == Gender.Female,
+                _ => false
+            };
+        }
+
         public override string ToString()
         {
             return $"UserData {{{Id}}}\n{Gender}{Age}\n{Name}";

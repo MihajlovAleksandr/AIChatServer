@@ -2,7 +2,7 @@
 {
     public class User
     {
-        public int Id { get; set; }
+        public Guid Id { get; set; }
         public string Email { get; set; }
         public string? Password { get; set; }
         public DateTime? Premium { get; set; }
@@ -15,6 +15,7 @@
         {
 
         }
+
         public User(string email, string verifyParam, RegistrationType registrationType)
         {
             Email = email;
@@ -27,6 +28,7 @@
                 GoogleId = verifyParam;
             }
         }
+
         public RegistrationType? GetRegistrationType()
         {
             if (Password== null || Password == string.Empty)
@@ -37,12 +39,13 @@
             if (GoogleId == null || GoogleId == string.Empty) return RegistrationType.Password;
             return RegistrationType.PasswordAndGoogle;
         }
+
         public override bool Equals(object? obj)
         {
-            User other = obj as User;
-            if (other == null) return false;
+            if (obj is not User other) return false;
             return Id.Equals(other.Id);
         }
+
         public override string ToString()
         {
             return $"User {{{Id}}}:\n{Email}\n{Premium}/{Points}\n{UserData}\n{Preference}";
