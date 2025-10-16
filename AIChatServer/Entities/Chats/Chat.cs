@@ -1,44 +1,38 @@
-﻿using Newtonsoft.Json;
-
-namespace AIChatServer.Entities.Chats
+﻿namespace AIChatServer.Entities.Chats
 {
-    public class Chat : IComparable<Chat>
+    public class Chat
     {
-        [JsonProperty("id")]
-        public int Id { get; set; }
-        [JsonProperty("creationTime")]
-
+        public Guid Id { get; set; }
         public DateTime CreationTime { get; set; }
-        [JsonProperty("endTime")]
-
         public DateTime? EndTime { get; set; }
-        [JsonIgnore]
-        public string Type { get; set; }
-        [JsonIgnore]
-        public Dictionary<int, string> UsersNames { get; set; }
+        public ChatType Type { get; set; }
+        public Dictionary<Guid, string> UsersNames { get; set; }
+
         public Chat()
         {
-            UsersNames = new Dictionary<int, string>();
+            UsersNames = new Dictionary<Guid, string>();
             CreationTime = DateTime.Now;
         }
 
-        public int CompareTo(Chat other)
-        {
-            return CreationTime.CompareTo(other.CreationTime);
-        }
-        public bool ContainsAI(int aiId)
+        public bool ContainsAI(Guid aiId)
         {
             return UsersNames.TryGetValue(aiId, out string? _);
         }
+
         public override bool Equals(object? obj)
         {
-            Chat other = obj as Chat;
-            if (other == null) return false;
+            if (obj is not Chat other) return false;
             return Id.Equals(other.Id);
         }
+
         public override string ToString()
         {
             return $"Chat #{Id}\n{CreationTime} - {EndTime}\n";
+        }
+
+        public override int GetHashCode()
+        {
+            return base.GetHashCode();
         }
     }
 }

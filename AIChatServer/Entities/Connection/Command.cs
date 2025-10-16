@@ -1,54 +1,23 @@
-﻿using Newtonsoft.Json;
-using AIChatServer.Utils;
+﻿using AIChatServer.Entities.Connection.Interfaces;
+using Newtonsoft.Json.Linq;
 
 namespace AIChatServer.Entities.Connection
 {
-    public class Command
+    public class Command(string operation, IConnection sender, JObject? data)
     {
-        [JsonProperty]
-        private string operation;
-        [JsonProperty]
-        private Dictionary<string,string> data;
-        [JsonIgnore]
-        public string Operation { get { return operation; } }
-        [JsonIgnore]
-        public Connection Sender { get; private set; }
-        public Command(string operation)
-        {
-            this.operation = operation;
-            data = new Dictionary<string, string>();
-        }
-        public Command()
-        {
-        }
-        public void AddData<T>(string name, T? obj)
-        {
-            data.Add(name, JsonHelper.Serialize(obj));
-        }
-        public T GetData<T>(string name)
-        {
+        private readonly JObject? _data = data;
+        public string Operation { get; } = operation;
+        public IConnection Sender { get; } = sender ?? throw new ArgumentNullException(nameof(sender));
 
-            if (data.TryGetValue(name, out var val))
-            {
-                Console.WriteLine(val);
-                return JsonHelper.Deserialize<T>(val); 
-            }
-
-            Console.WriteLine("null");
-            return default;
-        }
-        public void SetSender(Connection sender)
+        public T? GetData<T>()
         {
-            Sender = sender;
+            if (_data == null) return default;
+            return _data.ToObject<T>();
         }
+
         public override string ToString()
         {
-            string info = $"{operation}: \nData count: {data.Count}:\n";
-            foreach (var obj in data)
-            {
-                info += obj.ToString()+ "\n";
-            }
-            return  info;
+            return _data == null ? $"Command {{{Operation}}} Without data" : $"Command {{{Operation}}} With some data";
         }
     }
 }

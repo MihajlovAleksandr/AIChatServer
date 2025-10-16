@@ -2,24 +2,28 @@
 {
     public class VerificationCode
     {
-        private readonly int code;
-        private readonly DateTime validTo;
-        public int Code { get { return code; } }
-        public bool isVerify { get; private set; } 
-        public VerificationCode()
+        private readonly int _code;
+        private readonly DateTime _validTo;
+        private bool _isVerified;
+
+        public int Code { get { return _code; } }
+
+        public VerificationCode(Random random)
         {
-            Random random = new();
-            code = random.Next(100000, 999999);
-            validTo = DateTime.Now.AddMinutes(15);
-            isVerify = false;
+            ArgumentNullException.ThrowIfNull(random);
+
+            _code = random.Next(100000, 999999);
+            _validTo = DateTime.Now.AddMinutes(15);
+            _isVerified = false;
         }
+
         public int Validate(int code)
         {
-            if (this.code == code && !isVerify)
+            if (_code == code && !_isVerified)
             {
-                if (validTo > DateTime.Now)
+                if (_validTo > DateTime.Now)
                 {
-                    isVerify = true;
+                    _isVerified = true;
                     return 1;
                 }
                 return -1;
