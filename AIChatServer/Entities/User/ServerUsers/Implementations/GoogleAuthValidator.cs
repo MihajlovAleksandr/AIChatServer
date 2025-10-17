@@ -27,7 +27,7 @@ namespace AIChatServer.Entities.User.ServerUsers.Implementations
                 return null;
             }
 
-            if (payload.Audience != _googleClientId)
+            if ((string)payload.Audience != _googleClientId)
             {
                 _logger.LogWarning("Token audience mismatch. Expected: {ClientId}, Actual: {Audience}", _googleClientId, payload.Audience);
                 return null;

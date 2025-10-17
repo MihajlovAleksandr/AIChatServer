@@ -42,6 +42,8 @@ namespace AIChatServer.Managers.Implementations
             ILogger<ClientHandler> logger)
         {
             _userManager = userManager ?? throw new ArgumentNullException(nameof(userManager));
+            _userManager.OnConnectionEvent += (s, e) => ConnectionChanged?.Invoke(s,e);
+            _userManager.CommandGot += (s, e) => CommandGot?.Invoke(s, e);
             _connectionService = connectionService ?? throw new ArgumentNullException(nameof(connectionService));
             _serializer = serializer ?? throw new ArgumentNullException(nameof(serializer));
             _tokenService = tokenService ?? throw new ArgumentNullException(nameof(tokenService));

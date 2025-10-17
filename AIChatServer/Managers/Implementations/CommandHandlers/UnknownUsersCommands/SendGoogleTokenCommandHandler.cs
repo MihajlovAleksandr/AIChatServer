@@ -65,6 +65,7 @@ namespace AIChatServer.Managers.Implementations.CommandHandlers.UnknownUsersComm
                 user = new User(oAuthUser.Email, oAuthUser.Id, RegistrationType.Google);
                 _logger.LogInformation("Registering new Google user with email {Email}.", oAuthUser.Email);
                 await userContext.SendCommandAsync(new CommandResponse("GoogleRegistrationSuccess"));
+                userContext.SetUser(user);
                 return;
             }
 
