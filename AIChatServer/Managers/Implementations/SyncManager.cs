@@ -10,6 +10,7 @@ namespace AIChatServer.Managers.Implementations
     public class SyncManager : ISyncManager
     {
         private readonly IChatService _chatService;
+        private readonly IMessageService _messageService;
         private readonly Func<Guid, bool> _isChatSearching;
         private readonly ICollectionResponseMapper<MessageResponse, Message> _messageMapper;
         private readonly ICollectionResponseMapper<ChatResponse, ChatWithUserContext> _chatMapper;
@@ -17,12 +18,14 @@ namespace AIChatServer.Managers.Implementations
 
         public SyncManager(
             IChatService chatService,
+            IMessageService messageService,
             Func<Guid, bool> isChatSearching,
             ICollectionResponseMapper<MessageResponse, Message> messageMapper,
             ICollectionResponseMapper<ChatResponse, ChatWithUserContext> chatMapper,
             ILogger<SyncManager> logger)
         {
             _chatService = chatService ?? throw new ArgumentNullException(nameof(chatService));
+            _messageService = messageService ?? throw new ArgumentNullException(nameof(messageService));
             _isChatSearching = isChatSearching ?? throw new ArgumentNullException(nameof(isChatSearching));
             _messageMapper = messageMapper ?? throw new ArgumentNullException(nameof(messageMapper));
             _chatMapper = chatMapper ?? throw new ArgumentNullException(nameof(chatMapper));
@@ -34,7 +37,7 @@ namespace AIChatServer.Managers.Implementations
             _logger.LogInformation("Generating sync command for user {UserId} since {LastOnline}.", userId, lastOnline);
 
             var chats = _chatService.GetNewChats(userId, lastOnline);
-            var messages = _chatService.GetNewMessages(userId, lastOnline);
+            var messages = _messageService.GetNewMessages(userId, lastOnline);
 
             var messageResponsesMain = _messageMapper.ToDTO(messages.Item1);
             var messageResponsesCompressed = _messageMapper.ToDTO(messages.Item2);

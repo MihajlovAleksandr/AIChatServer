@@ -93,6 +93,7 @@ namespace AIChatServer
             services.AddSingleton(typeof(INotificationManager), mainDeps.NotificationManager);
             services.AddSingleton(typeof(INotificationService), mainDeps.NotificationService);
             services.AddSingleton(typeof(IChatService), mainDeps.ChatService);
+            services.AddSingleton(typeof(IMessageService), mainDeps.MessageService);
             services.AddSingleton(typeof(IUserService), mainDeps.UserService);
 
             services.AddSingleton(typeof(ISendCommandMapper), mainDeps.SendCommandMapper);

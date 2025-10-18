@@ -27,7 +27,7 @@ namespace AIChatServer.Utils.Implementations.Mappers
             ArgumentNullException.ThrowIfNull(request.Sender);
             ArgumentNullException.ThrowIfNull(request.Text);
 
-            return new Message() { Chat = request.Chat, Sender = request.Sender, Text = request.Text };
+            return new Message() { Id = request.Id, Chat = request.Chat, Sender = request.Sender, Text = request.Text };
         }
     }
 }

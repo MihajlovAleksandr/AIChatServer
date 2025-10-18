@@ -17,6 +17,7 @@ namespace AIChatServer.Factories.Containers
         IAIManager AIManager,
         INotificationManager NotificationManager,
         IChatService ChatService,
+        IMessageService MessageService,
         IUserService UserService,
         INotificationService NotificationService,
         ISendCommandMapper SendCommandMapper,

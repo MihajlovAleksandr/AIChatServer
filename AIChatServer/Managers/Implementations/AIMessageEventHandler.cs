@@ -11,7 +11,7 @@ namespace AIChatServer.Managers.Implementations
     public class AIMessageEventHandler : IEventHandler
     {
         private readonly IAIManager _aiManager;
-        private readonly IChatService _chatService;
+        private readonly IMessageService _messageService;
         private readonly IChatManager _chatManager;
         private readonly IUserManager _userManager;
         private readonly ISendCommandMapper _commandMapper;
@@ -20,7 +20,7 @@ namespace AIChatServer.Managers.Implementations
 
         public AIMessageEventHandler(
             IAIManager aiManager,
-            IChatService chatService,
+            IMessageService messageService,
             IChatManager chatManager,
             IUserManager userManager,
             ISendCommandMapper commandMapper,
@@ -28,7 +28,7 @@ namespace AIChatServer.Managers.Implementations
             NotificationServiceFacade notifications)
         {
             _aiManager = aiManager;
-            _chatService = chatService;
+            _messageService = messageService;
             _chatManager = chatManager;
             _userManager = userManager;
             _commandMapper = commandMapper;
@@ -43,7 +43,7 @@ namespace AIChatServer.Managers.Implementations
             if (args is not Message message)
                 throw new ArgumentException(nameof(args));
 
-            var savedMessage = _chatService.SendMessage(message);
+            var savedMessage = _messageService.SendMessage(message);
             var users = _chatManager.GetUsersInChat(savedMessage.Chat);
 
             await _userManager.SendCommandAsync(_commandMapper.MapToSendCommand(

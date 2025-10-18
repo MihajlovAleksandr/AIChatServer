@@ -11,14 +11,14 @@ using AIChatServer.Utils.Interfaces.Mapper;
 
 namespace AIChatServer.Managers.Implementations.CommandHandlers.MainManagerCommands
 {
-    public class SendMessageCommandHandler(IChatService chatService, IChatManager chatManager,
+    public class SendMessageCommandHandler(IMessageService messageService, IChatManager chatManager,
         IUserManager userManager, IAIManager aiManager, INotificationService notificationService,
         INotificationManager notificationManager, ISerializer serializer,
         IMapper<MessageRequest, Message, MessageResponse> messageMapper, 
         ISendCommandMapper sendCommandMapper) : ICommandHandler
     {
-        private readonly IChatService _chatService = chatService
-            ?? throw new ArgumentNullException(nameof(chatService));
+        private readonly IMessageService _messageService = messageService
+            ?? throw new ArgumentNullException(nameof(messageService));
         private readonly IChatManager _chatManager = chatManager
             ?? throw new ArgumentNullException(nameof(chatManager));
         private readonly IUserManager _userManager = userManager
@@ -50,7 +50,7 @@ namespace AIChatServer.Managers.Implementations.CommandHandlers.MainManagerComma
             }
 
             Message message = _messageMapper.ToModel(messageRequest);
-            message = _chatService.SendMessage(message);
+            message = _messageService.SendMessage(message);
             List<Guid> users = _chatManager.GetUsersInChat(message.Chat);
 
             await _userManager.SendCommandAsync(_sendCommandMapper.MapToSendCommand(users, new CommandResponse("SendMessage", _messageMapper.ToDTO(message))));

@@ -35,29 +35,6 @@ namespace AIChatServer.Service.Implementations
             return chat;
         }
 
-        public List<Message> GetMessagesByChatId(Guid chatId)
-        {
-            var messages = _chatRepository.GetMessagesByChatId(chatId);
-            _logger.LogInformation("Retrieved {MessageCount} messages for Chat {ChatId}.", messages.Count, chatId);
-            return messages;
-        }
-
-        public Message SendMessage(Message message)
-        {
-            ArgumentNullException.ThrowIfNull(message);
-
-            if (string.IsNullOrWhiteSpace(message.Text))
-            {
-                _logger.LogWarning("Attempt to send empty message in Chat {ChatId} by User {UserId}.", message.Chat, message.Sender);
-                throw new ArgumentException("Message text cannot be empty", nameof(message));
-            }
-
-            var result = _chatRepository.SendMessage(message.Chat, message.Sender, message.Text);
-            _logger.LogInformation("Message {MessageId} sent in Chat {ChatId} by User {UserId}.", result.Id, message.Chat, message.Sender);
-
-            return result;
-        }
-
         public DateTime EndChat(Guid chatId)
         {
             var endTime = _chatRepository.EndChat(chatId);
@@ -91,13 +68,6 @@ namespace AIChatServer.Service.Implementations
             var chats = _chatRepository.GetNewChats(userId, lastOnline);
             _logger.LogInformation("Retrieved {NewChats} new and {UpdatedChats} updated chats for User {UserId}.", chats.Item1.Count, chats.Item2.Count, userId);
             return chats;
-        }
-
-        public (List<Message>, List<Message>) GetNewMessages(Guid userId, DateTime lastOnline)
-        {
-            var messages = _chatRepository.GetNewMessages(userId, lastOnline);
-            _logger.LogInformation("Retrieved {NewMessages} new and {UpdatedMessages} updated messages for User {UserId}.", messages.Item1.Count, messages.Item2.Count, userId);
-            return messages;
         }
 
         public (List<Guid>, List<UserData>, List<bool>) LoadUsers(Guid chatId)

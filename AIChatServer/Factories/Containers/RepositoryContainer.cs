@@ -6,6 +6,7 @@ namespace AIChatServer.Factories.Containers
         IUserRepository UserRepository,
         IAuthRepository AuthRepository,
         IChatRepository ChatRepository,
+        IMessageRepository MessageRepository,
         IConnectionRepository ConnectionRepository,
         IAIMessageRepository AIMessageRepository,
         INotificationRepository NotificationRepository

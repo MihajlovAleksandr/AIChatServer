@@ -59,6 +59,7 @@ namespace AIChatServer.Factories.Implementations
                 AIManager: managerContainer.AIManager,
                 NotificationManager: managerContainer.NotificationManager,
                 ChatService: serviceContainer.ChatService,
+                MessageService: serviceContainer.MessageService,
                 UserService: serviceContainer.UserService,
                 NotificationService: serviceContainer.NotificationService,
                 SendCommandMapper: mapperContainer.SendCommandMapper,

@@ -33,74 +33,6 @@ namespace AIChatServer.Repositories.Implementations
             }
         }
 
-        public List<Message> GetMessagesByChatId(Guid chatId)
-        {
-            var messages = new List<Message>();
-
-            try
-            {
-                _logger.LogInformation("Retrieving messages for ChatId={ChatId}", chatId);
-
-                using (var connection = GetConnection())
-                using (var command = new NpgsqlCommand(ChatQueries.GetMessagesByChatId, connection))
-                {
-                    command.Parameters.AddWithValue("@ChatId", chatId);
-
-                    using (var reader = command.ExecuteReader())
-                    {
-                        while (reader.Read())
-                        {
-                            messages.Add(new Message
-                            {
-                                Id = reader.GetGuid("id"),
-                                Chat = reader.GetGuid("chat_id"),
-                                Sender = reader.GetGuid("user_id"),
-                                Text = reader.GetString("text"),
-                                Time = reader.GetDateTime("time"),
-                                LastUpdate = reader.GetDateTime("last_update")
-                            });
-                        }
-                    }
-                }
-
-                _logger.LogInformation("Retrieved {MessageCount} messages for ChatId={ChatId}", messages.Count, chatId);
-                return messages;
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "Failed to retrieve messages for ChatId={ChatId}", chatId);
-                throw;
-            }
-        }
-
-        public Message SendMessage(Guid chatId, Guid userId, string text)
-        {
-
-            try
-            {
-                _logger.LogInformation("Sending message for ChatId={ChatId} by UserId={UserId}", chatId, userId);
-
-                using (var connection = GetConnection())
-                using (var command = new NpgsqlCommand(ChatQueries.SendMessage, connection))
-                {
-                    command.Parameters.AddWithValue("@ChatId", chatId);
-                    command.Parameters.AddWithValue("@UserId", userId);
-                    command.Parameters.AddWithValue("@Text", text);
-
-                    var messageId = (Guid)command.ExecuteScalar();
-                    var message = GetMessageById(messageId);
-
-                    _logger.LogInformation("Message sent with Id={MessageId} for ChatId={ChatId}", messageId, chatId);
-                    return message;
-                }
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "Failed to send message for ChatId={ChatId} by UserId={UserId}", chatId, userId);
-                throw;
-            }
-        }
-
         public DateTime EndChat(Guid chatId)
         {
 
@@ -151,100 +83,6 @@ namespace AIChatServer.Repositories.Implementations
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Failed to update chat name for ChatId={ChatId} by UserId={UserId}", chatId, userId);
-                throw;
-            }
-        }
-
-        public (List<Chat>, List<Chat>) GetNewChats(Guid userId, DateTime lastOnline)
-        {
-            var chats = (new List<Chat>(), new List<Chat>());
-
-            try
-            {
-                _logger.LogInformation("Retrieving new chats for UserId={UserId} since {LastOnline}", userId, lastOnline);
-
-                using (var connection = GetConnection())
-                using (var command = new NpgsqlCommand(ChatQueries.GetNewChats, connection))
-                {
-                    command.Parameters.AddWithValue("@UserId", userId);
-                    command.Parameters.AddWithValue("@LastOnline", lastOnline);
-
-                    using (var reader = command.ExecuteReader())
-                    {
-                        while (reader.Read())
-                        {
-                            var chat = new Chat
-                            {
-                                Id = reader.GetGuid("id"),
-                                CreationTime = reader.GetDateTime("creation_time"),
-                                EndTime = reader.IsDBNull("end_time") ? null : reader.GetDateTime("end_time"),
-                                UsersNames = new Dictionary<Guid, string>() { { userId, reader.GetString("name") } }
-                            };
-
-                            if (chat.CreationTime > lastOnline)
-                                chats.Item1.Add(chat);
-                            else
-                                chats.Item2.Add(chat);
-                        }
-                    }
-                }
-
-                _logger.LogInformation("Retrieved {NewChatsCount} new chats and {OldChatsCount} updated chats for UserId={UserId}",
-                    chats.Item1.Count, chats.Item2.Count, userId);
-
-                return chats;
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "Failed to retrieve new chats for UserId={UserId}", userId);
-                throw;
-            }
-        }
-
-        public (List<Message>, List<Message>) GetNewMessages(Guid userId, DateTime lastOnline)
-        {
-            var messages = (new List<Message>(), new List<Message>());
-
-            try
-            {
-                _logger.LogInformation("Retrieving new messages for UserId={UserId} since {LastOnline}", userId, lastOnline);
-
-                using (var connection = GetConnection())
-                using (var command = new NpgsqlCommand(ChatQueries.GetNewMessages, connection))
-                {
-                    command.Parameters.AddWithValue("@UserId", userId);
-                    command.Parameters.AddWithValue("@LastOnline", lastOnline);
-
-                    using (var reader = command.ExecuteReader())
-                    {
-                        while (reader.Read())
-                        {
-                            var message = new Message
-                            {
-                                Id = reader.GetGuid("id"),
-                                Chat = reader.GetGuid("chat_id"),
-                                Sender = reader.GetGuid("user_id"),
-                                Text = reader.GetString("text"),
-                                Time = reader.GetDateTime("time"),
-                                LastUpdate = reader.GetDateTime("last_update")
-                            };
-
-                            if (message.Time > lastOnline)
-                                messages.Item1.Add(message);
-                            else
-                                messages.Item2.Add(message);
-                        }
-                    }
-                }
-
-                _logger.LogInformation("Retrieved {NewMessagesCount} new messages and {OldMessagesCount} updated messages for UserId={UserId}",
-                    messages.Item1.Count, messages.Item2.Count, userId);
-
-                return messages;
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "Failed to retrieve new messages for UserId={UserId}", userId);
                 throw;
             }
         }
@@ -461,42 +299,50 @@ namespace AIChatServer.Repositories.Implementations
                 throw;
             }
         }
-
-        private Message GetMessageById(Guid messageId)
+        public (List<Chat>, List<Chat>) GetNewChats(Guid userId, DateTime lastOnline)
         {
+            var chats = (new List<Chat>(), new List<Chat>());
+
             try
             {
+                _logger.LogInformation("Retrieving new chats for UserId={UserId} since {LastOnline}", userId, lastOnline);
+
                 using (var connection = GetConnection())
-                using (var command = new NpgsqlCommand(ChatQueries.GetMessageById, connection))
+                using (var command = new NpgsqlCommand(ChatQueries.GetNewChats, connection))
                 {
-                    command.Parameters.AddWithValue("@Id", messageId);
+                    command.Parameters.AddWithValue("@UserId", userId);
+                    command.Parameters.AddWithValue("@LastOnline", lastOnline);
 
                     using (var reader = command.ExecuteReader())
                     {
-                        if (reader.Read())
+                        while (reader.Read())
                         {
-                            var message = new Message
+                            var chat = new Chat
                             {
                                 Id = reader.GetGuid("id"),
-                                Chat = reader.GetGuid("chat_id"),
-                                Sender = reader.GetGuid("user_id"),
-                                Text = reader.GetString("text"),
-                                Time = reader.GetDateTime("time"),
-                                LastUpdate = reader.GetDateTime("last_update")
+                                CreationTime = reader.GetDateTime("creation_time"),
+                                EndTime = reader.IsDBNull("end_time") ? null : reader.GetDateTime("end_time"),
+                                UsersNames = new Dictionary<Guid, string>() { { userId, reader.GetString("name") } }
                             };
-                            _logger.LogDebug("Retrieved message Id={MessageId}", messageId);
-                            return message;
+
+                            if (chat.CreationTime > lastOnline)
+                                chats.Item1.Add(chat);
+                            else
+                                chats.Item2.Add(chat);
                         }
                     }
                 }
+
+                _logger.LogInformation("Retrieved {NewChatsCount} new chats and {OldChatsCount} updated chats for UserId={UserId}",
+                    chats.Item1.Count, chats.Item2.Count, userId);
+
+                return chats;
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Failed to retrieve message Id={MessageId}", messageId);
+                _logger.LogError(ex, "Failed to retrieve new chats for UserId={UserId}", userId);
                 throw;
             }
-
-            return null;
         }
 
         private DateTime GetChatEndTime(Guid chatId)

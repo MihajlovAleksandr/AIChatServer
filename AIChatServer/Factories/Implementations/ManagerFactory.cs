@@ -61,7 +61,7 @@ namespace AIChatServer.Factories.Implementations
             var messageCollectionMapper = new CollectionResponseMapper<MessageResponse, Message>(mappers.MessageMapper);
             var chatCollectionMapper = new CollectionResponseMapper<ChatResponse, ChatWithUserContext>(mappers.ChatResponseMapper);
 
-            var syncService = new SyncManager(serviceContainer.ChatService, chatManager.IsSearchingChat, messageCollectionMapper,
+            var syncService = new SyncManager(serviceContainer.ChatService, serviceContainer.MessageService, chatManager.IsSearchingChat, messageCollectionMapper,
             chatCollectionMapper, _loggerFactory.Create<SyncManager>());
 
             var aiMessages = await serviceContainer.AIMessageService.GetAIMessagesByChatAsync(chatManager.GetUserChats(configData.AIConfigData.AIId));

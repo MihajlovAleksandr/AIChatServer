@@ -19,7 +19,7 @@ namespace AIChatServer.Factories.Implementations
         {
             var handlers = new ConcurrentDictionary<string, ICommandHandler>();
 
-            handlers.TryAdd("SendMessage", new SendMessageCommandHandler(services.ChatService, managers.ChatManager, managers.UserManager,
+            handlers.TryAdd("SendMessage", new SendMessageCommandHandler(services.MessageService, managers.ChatManager, managers.UserManager,
                 managers.AIManager,
                 services.NotificationService, managers.NotificationManager, _serializer, mappers.MessageMapper, mappers.SendCommandMapper));
 

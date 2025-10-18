@@ -2,14 +2,6 @@
 {
     public static class ChatQueries
     {
-        public const string GetMessagesByChatId =
-            "SELECT * FROM messages WHERE chat_id = @ChatId AND deleted_status = false";
-
-        public const string SendMessage = @"
-            INSERT INTO messages (chat_id, user_id, text) 
-            VALUES (@ChatId, @UserId, @Text)
-            RETURNING id;";
-
         public const string EndChat =
             "UPDATE chats SET end_time = CURRENT_TIMESTAMP WHERE id = @Id";
 
@@ -25,14 +17,6 @@
             WHERE uc.user_id = @UserId 
             AND (uc.last_update > @LastOnline OR 
                  (c.end_time IS NOT NULL AND c.end_time > @LastOnline));";
-
-        public const string GetNewMessages = @"
-            SELECT m.*
-            FROM messages m
-            JOIN users_chats uc ON m.chat_id = uc.chat_id
-            WHERE uc.user_id = @UserId
-            AND (m.last_update > @LastOnline)
-            ORDER BY m.chat_id;";
 
         public const string LoadUsers = @"
             SELECT 
@@ -68,9 +52,6 @@
 
         public const string AddUserToChat =
             "INSERT INTO users_chats (user_id, chat_id, name) VALUES (@UserId, @ChatId, '') RETURNING name;";
-
-        public const string GetMessageById =
-            "SELECT id, chat_id, user_id, text, time, last_update FROM messages WHERE id = @Id AND deleted_status = false";
 
         public const string GetChatEndTime =
             "SELECT end_time FROM chats WHERE id = @Id";

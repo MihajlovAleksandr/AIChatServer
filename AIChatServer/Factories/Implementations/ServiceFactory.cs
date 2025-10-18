@@ -14,6 +14,7 @@ namespace AIChatServer.Factories.Implementations
         public ServiceContainer CreateServices(ConfigData configData, RepositoryContainer repos)
         {
             var chatService = new ChatService(repos.ChatRepository, _loggerFactory.Create<ChatService>());
+            var messageService = new MessageService(repos.MessageRepository, _loggerFactory.Create<MessageService>());
             var userService = new UserService(repos.UserRepository, _loggerFactory.Create<UserService>());
             var connectionService = new ConnectionService(repos.ConnectionRepository, _loggerFactory.Create<ConnectionService>());
             var authService = new AuthService(repos.AuthRepository, new Hasher(_loggerFactory.Create<Hasher>()),
@@ -31,6 +32,7 @@ namespace AIChatServer.Factories.Implementations
             return new ServiceContainer(
                 AIMessageService: aiMessageService,
                 ChatService: chatService,
+                MessageService: messageService,
                 UserService: userService,
                 ConnectionService: connectionService,
                 AuthService: authService,
