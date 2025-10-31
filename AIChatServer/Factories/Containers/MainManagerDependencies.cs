@@ -1,6 +1,7 @@
 ﻿using AIChatServer.Entities.Chats;
 using AIChatServer.Entities.DTO.Request;
 using AIChatServer.Entities.DTO.Response;
+using AIChatServer.Entities.User;
 using AIChatServer.Managers;
 using AIChatServer.Managers.Interfaces;
 using AIChatServer.Service.Interfaces;
@@ -19,9 +20,11 @@ namespace AIChatServer.Factories.Containers
         IChatService ChatService,
         IMessageService MessageService,
         IUserService UserService,
+        IConnectionService ConnectionService,
         INotificationService NotificationService,
         ISendCommandMapper SendCommandMapper,
         IResponseMapper<ChatResponse, ChatWithUserContext> ChatResponseMapper,
+        IResponseMapper<UserDataResponse, UserData> UserDaraMapper,
         IMapper<MessageRequest, Message, MessageResponse> MessageMapper,
         ConcurrentDictionary<string, ICommandHandler> CommandHandlers,
         ILogger<MainManager> Logger,

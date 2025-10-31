@@ -30,7 +30,13 @@ namespace AIChatServer.Config.Implementations
                 int.Parse(_configReader.GetDataFromPath($"{AIConfigPaths.BasePath}.{AIConfigPaths.ProbabilityAIChat}")
                     ?? throw new ArgumentNullException(nameof(AIConfigPaths.ProbabilityAIChat))),
                 Guid.Parse(_configReader.GetDataFromPath($"{AIConfigPaths.BasePath}.{AIConfigPaths.AIId}")
-                    ?? throw new ArgumentNullException(nameof(AIConfigPaths.AIId)))
+                    ?? throw new ArgumentNullException(nameof(AIConfigPaths.AIId))),
+                new AIChatDelay(
+                    int.Parse(_configReader.GetDataFromPath($"{AIConfigPaths.BasePath}.{AIConfigPaths.AIChatDelayMin}")
+                        ?? throw new ArgumentNullException(nameof(AIConfigPaths.AIChatDelayMin))),
+                    int.Parse(_configReader.GetDataFromPath($"{AIConfigPaths.BasePath}.{AIConfigPaths.AIChatDelayMax}")
+                        ?? throw new ArgumentNullException(nameof(AIConfigPaths.AIChatDelayMin)))
+                )
             );
             AIMessageBufferData aIMessageBufferData = new AIMessageBufferData(
                 new AIMessageBufferSize(

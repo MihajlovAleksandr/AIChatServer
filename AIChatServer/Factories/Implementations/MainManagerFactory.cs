@@ -10,22 +10,36 @@ namespace AIChatServer.Factories.Implementations
     public class MainManagerFactory(
         IMapperFactory mapperFactory,
         ITokenManagerFactory tokenManagerFactory,
+        IUserPredicateFactory userPredicateFactory,
         IRepositoryFactory repositoryFactory,
         IServiceFactory serviceFactory,
+        IChatControllerFactory chatControllerFactory,
         IManagerFactory managerFactory,
         IUserFactoryFactory userFactoryFactory,
         ICommandHandlerFactory commandHandlerFactory,
         IChatStrategyFactory chatStrategyFactory,
         ICompositeLoggerFactory loggerFactory) : IMainManagerFactory
     {
-        private readonly IMapperFactory _mapperFactory = mapperFactory ?? throw new ArgumentNullException(nameof(mapperFactory));
-        private readonly ITokenManagerFactory _tokenManagerFactory = tokenManagerFactory ?? throw new ArgumentNullException(nameof(tokenManagerFactory));
-        private readonly IRepositoryFactory _repositoryFactory = repositoryFactory ?? throw new ArgumentNullException(nameof(repositoryFactory));
-        private readonly IServiceFactory _serviceFactory = serviceFactory ?? throw new ArgumentNullException(nameof(serviceFactory));
-        private readonly IManagerFactory _managerFactory = managerFactory ?? throw new ArgumentNullException(nameof(managerFactory));
-        private readonly IUserFactoryFactory _userFactoryFactory = userFactoryFactory ?? throw new ArgumentNullException(nameof(userFactoryFactory));
-        private readonly ICommandHandlerFactory _commandHandlerFactory = commandHandlerFactory ?? throw new ArgumentNullException(nameof(commandHandlerFactory));
-        private readonly IChatStrategyFactory _chatStrategyFactory = chatStrategyFactory ?? throw new ArgumentNullException(nameof(chatStrategyFactory));
+        private readonly IMapperFactory _mapperFactory = mapperFactory 
+            ?? throw new ArgumentNullException(nameof(mapperFactory));
+        private readonly ITokenManagerFactory _tokenManagerFactory = tokenManagerFactory
+            ?? throw new ArgumentNullException(nameof(tokenManagerFactory));
+        private readonly IUserPredicateFactory _userPredicateFactory = userPredicateFactory
+            ?? throw new ArgumentNullException(nameof(userPredicateFactory));
+        private readonly IRepositoryFactory _repositoryFactory = repositoryFactory
+            ?? throw new ArgumentNullException(nameof(repositoryFactory));
+        private readonly IServiceFactory _serviceFactory = serviceFactory
+            ?? throw new ArgumentNullException(nameof(serviceFactory));
+        private readonly IChatControllerFactory _chatControllerFactory = chatControllerFactory
+            ?? throw new ArgumentNullException(nameof(chatControllerFactory));
+        private readonly IManagerFactory _managerFactory = managerFactory
+            ?? throw new ArgumentNullException(nameof(managerFactory));
+        private readonly IUserFactoryFactory _userFactoryFactory = userFactoryFactory
+            ?? throw new ArgumentNullException(nameof(userFactoryFactory));
+        private readonly ICommandHandlerFactory _commandHandlerFactory = commandHandlerFactory
+            ?? throw new ArgumentNullException(nameof(commandHandlerFactory));
+        private readonly IChatStrategyFactory _chatStrategyFactory = chatStrategyFactory
+            ?? throw new ArgumentNullException(nameof(chatStrategyFactory));
         private readonly ICompositeLoggerFactory _loggerFactory = loggerFactory ?? throw new ArgumentNullException(nameof(loggerFactory));
 
         public async Task<MainManagerDependencies> Create(ConfigData configData, IConnectionFactory connectionFactory)
@@ -38,17 +52,21 @@ namespace AIChatServer.Factories.Implementations
 
             var tokenManagerContainer = _tokenManagerFactory.CreateTokenManagers(configData);
 
-            var chatStrategies = _chatStrategyFactory.CreateStrategies(configData.AIConfigData.AIId);
+            var userPredicates = _userPredicateFactory.GetPredicates();
+
+            var chatStrategies = _chatStrategyFactory.CreateStrategies(configData.AIConfigData, userPredicates);
 
             var serviceContainer = _serviceFactory.CreateServices(configData, repoContainer);
 
             var userFactories = _userFactoryFactory.CreateUserFactories(serviceContainer, tokenManagerContainer, mapperContainer, configData);
 
-            var managerContainer = await _managerFactory.CreateManagers(configData, mapperContainer, chatStrategies, tokenManagerContainer,
-                serviceContainer, userFactories, connectionFactory);
+            var chatControllerContainer = _chatControllerFactory.Create(chatStrategies.ChatMatchStrategies, chatStrategies.AddUserStrategies);
+            
+            var managerContainer = await _managerFactory.CreateManagersAsync(configData, mapperContainer, chatStrategies.ChatMatchStrategies, tokenManagerContainer,
+                serviceContainer, userFactories, connectionFactory, chatControllerContainer);
 
             var commandHandlers = _commandHandlerFactory.CreateCommandHandlers(serviceContainer, tokenManagerContainer, managerContainer,
-                mapperContainer);
+                mapperContainer, chatControllerContainer);
 
             var userEvents = managerContainer.UserEvents;
             var connectionListener = managerContainer.ConnectionListener;
@@ -61,9 +79,11 @@ namespace AIChatServer.Factories.Implementations
                 ChatService: serviceContainer.ChatService,
                 MessageService: serviceContainer.MessageService,
                 UserService: serviceContainer.UserService,
+                ConnectionService: serviceContainer.ConnectionService,
                 NotificationService: serviceContainer.NotificationService,
                 SendCommandMapper: mapperContainer.SendCommandMapper,
                 ChatResponseMapper: mapperContainer.ChatResponseMapper,
+                UserDaraMapper: mapperContainer.UserDataMapper,
                 MessageMapper: mapperContainer.MessageMapper,
                 CommandHandlers: commandHandlers,
                 Logger: _loggerFactory.Create<MainManager>(),

@@ -6,6 +6,8 @@ namespace AIChatServer.Repositories.Interfaces
     public interface IChatRepository
     {
         Chat CreateChat(Guid[] users, ChatType type);
+        UserInChatData AddUserToChat(Guid userId, Guid chatId);
+        bool RemoveUserFromChat(Guid userId, Guid chatId);
         DateTime EndChat(Guid chatId);
         bool UpdateChatName(Guid chatId, Guid userId, string name);
         (List<Chat>, List<Chat>) GetNewChats(Guid userId, DateTime lastOnline);

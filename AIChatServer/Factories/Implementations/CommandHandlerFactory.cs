@@ -15,7 +15,7 @@ namespace AIChatServer.Factories.Implementations
         private readonly ISerializer _serializer = serializer ?? throw new ArgumentNullException(nameof(serializer));
 
         public ConcurrentDictionary<string, ICommandHandler> CreateCommandHandlers(ServiceContainer services, TokenManagerContainer tokenManagers,
-            ManagerContainer managers, MapperContainer mappers)
+            ManagerContainer managers, MapperContainer mappers, ChatControllerContainer chatControllerContainer)
         {
             var handlers = new ConcurrentDictionary<string, ICommandHandler>();
 
@@ -23,9 +23,9 @@ namespace AIChatServer.Factories.Implementations
                 managers.AIManager,
                 services.NotificationService, managers.NotificationManager, _serializer, mappers.MessageMapper, mappers.SendCommandMapper));
 
-            handlers.TryAdd("SearchChat", new SearchChatCommandHandler(managers.ChatManager));
+            handlers.TryAdd("SearchChat", new SearchChatCommandHandler(chatControllerContainer.ChatMatcher,managers.ChatManager));
             handlers.TryAdd("EndChat", new EndChatCommandHandler(managers.ChatManager));
-            handlers.TryAdd("StopSearchingChat", new StopSearchingChatCommandHandler(managers.ChatManager));
+            handlers.TryAdd("StopSearchingChat", new StopSearchingChatCommandHandler(chatControllerContainer.ChatMatcher));
             handlers.TryAdd("SyncDB", new SyncDBCommandHandler(managers.SyncService, _serializer));
             handlers.TryAdd("LoadUsersInChat", new LoadUsersInChatCommandHandler(services.ChatService, managers.ChatManager,
                 managers.AIManager, _serializer, mappers.UserDataMapper));
@@ -42,6 +42,9 @@ namespace AIChatServer.Factories.Implementations
             handlers.TryAdd("UpdateNotifications", new UpdateNotificationsCommandHandler(services.NotificationService));
             handlers.TryAdd("UpdateChatName", new UpdateChatNameCommandHandler(services.ChatService));
             handlers.TryAdd("UpdateNotificationToken", new UpdateNotificationTokenCommandHandler(services.NotificationService));
+            handlers.TryAdd("AddOtherUserToChat", new AddOtherUserToChatCommandHandler(chatControllerContainer.ChatUserAdder, managers.ChatManager));
+            handlers.TryAdd("AddUserToChat", new AddUserToChatCommandHandler(chatControllerContainer.ChatUserAdder, managers.ChatManager));
+            handlers.TryAdd("RemoveUserFromChat", new RemoveUserFromChatCommandHandler(managers.ChatManager));
 
             return handlers;
         }

@@ -1,10 +1,10 @@
-﻿using AIChatServer.Entities.Chats;
-using AIChatServer.Managers.Interfaces;
+﻿using AIChatServer.Config.Data;
+using AIChatServer.Factories.Containers;
 
 namespace AIChatServer.Factories.Interfaces
 {
     public interface IChatStrategyFactory
     {
-        Dictionary<ChatType, IChatMatchStrategy> CreateStrategies(Guid aIId);
+        ChatStrategyContainer CreateStrategies(AIConfigData aIConfigData, UserPredicateContainer userPredicateContainer);
     }
 }

@@ -5,6 +5,6 @@ namespace AIChatServer.Managers.Interfaces
 {
     public interface IChatMatchStrategy
     {
-        Task MatchUserAsync(User user, IChatCreator chatCreator, ChatType? chatType = default);
+        Task MatchUserAsync(User user, IChatLifecycleManager chatCreator, string? chatPredicate = null);
     }
 }

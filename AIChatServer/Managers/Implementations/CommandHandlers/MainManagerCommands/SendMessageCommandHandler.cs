@@ -14,7 +14,7 @@ namespace AIChatServer.Managers.Implementations.CommandHandlers.MainManagerComma
     public class SendMessageCommandHandler(IMessageService messageService, IChatManager chatManager,
         IUserManager userManager, IAIManager aiManager, INotificationService notificationService,
         INotificationManager notificationManager, ISerializer serializer,
-        IMapper<MessageRequest, Message, MessageResponse> messageMapper, 
+        IMapper<MessageRequest, Message, MessageResponse> messageMapper,
         ISendCommandMapper sendCommandMapper) : ICommandHandler
     {
         private readonly IMessageService _messageService = messageService
@@ -51,9 +51,11 @@ namespace AIChatServer.Managers.Implementations.CommandHandlers.MainManagerComma
 
             Message message = _messageMapper.ToModel(messageRequest);
             message = _messageService.SendMessage(message);
-            List<Guid> users = _chatManager.GetUsersInChat(message.Chat);
+            Chat chat = _chatManager.GetChat(message.Chat) ?? throw new ArgumentNullException(nameof(chat));
+            List<Guid> users = chat.UsersWithData.Keys.ToList();
 
-            await _userManager.SendCommandAsync(_sendCommandMapper.MapToSendCommand(users, new CommandResponse("SendMessage", _messageMapper.ToDTO(message))));
+            await _userManager.SendCommandAsync(_sendCommandMapper.MapToSendCommand(users, 
+                new CommandResponse("SendMessage", _messageMapper.ToDTO(message))));
 
             users.Remove(message.Sender);
             await SendMessageNotification(users, message);
@@ -72,15 +74,19 @@ namespace AIChatServer.Managers.Implementations.CommandHandlers.MainManagerComma
             {
                 if (allTokens.TryGetValue(users[i], out List<string>? userTokens))
                 {
-                    string? name = _chatManager.GetChatName(message.Chat, users[i]);
-                    if (name != null)
+                    Chat? chat = _chatManager.GetChat(message.Chat);
+                    if (chat != null)
                     {
-                        for (int j = 0; j < userTokens.Count; j++)
+                        chat.UsersWithData.TryGetValue(users[i], out UserInChatData? data);
+                        if (data != null)
                         {
-                            string token = userTokens[j];
-                            if (token != null)
+                            for (int j = 0; j < userTokens.Count; j++)
                             {
-                                await _notificationManager.SendMessageToDevice(token, name, message.Text, message.Chat, false);
+                                string token = userTokens[j];
+                                if (token != null)
+                                {
+                                    await _notificationManager.SendMessageToDevice(token, data.Name, message.Text, message.Chat, false);
+                                }
                             }
                         }
                     }

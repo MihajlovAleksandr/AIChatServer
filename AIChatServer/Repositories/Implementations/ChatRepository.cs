@@ -21,7 +21,7 @@ namespace AIChatServer.Repositories.Implementations
                 var chat = CreateChat(type);
                 foreach (Guid userId in users)
                 {
-                    chat.UsersNames.Add(userId, AddUserToChat(userId, chat.Id));
+                    chat.UsersWithData.Add(userId, AddUserToChat(userId, chat.Id));
                 }
                 _logger.LogInformation("Chat created with Id={ChatId} and {UserCount} users", chat.Id, users.Length);
                 return chat;
@@ -152,7 +152,7 @@ namespace AIChatServer.Repositories.Implementations
                                     Id = reader.GetGuid("id"),
                                     CreationTime = reader.GetDateTime("creation_time"),
                                     Type = (ChatType)Enum.Parse(typeof(ChatType), reader.GetString("type"), ignoreCase: true),
-                                    UsersNames = new Dictionary<Guid, string>()
+                                    UsersWithData = new Dictionary<Guid, UserInChatData>()
                                 };
                                 chats.Add(chat.Id, chat);
                             }
@@ -170,7 +170,8 @@ namespace AIChatServer.Repositories.Implementations
                                 {
                                     while (reader.Read())
                                     {
-                                        chat.UsersNames.Add(reader.GetGuid("user_id"), reader.GetString("name"));
+                                        chat.UsersWithData.Add(reader.GetGuid("user_id"), 
+                                            new UserInChatData(reader.GetString("name"), reader.GetDateTime("join_time")));
                                     }
                                 }
                             }
@@ -278,7 +279,7 @@ namespace AIChatServer.Repositories.Implementations
             throw new Exception("Can't read chat from DB");
         }
 
-        private string AddUserToChat(Guid userId, Guid chatId)
+        public UserInChatData AddUserToChat(Guid userId, Guid chatId)
         {
             try
             {
@@ -288,10 +289,26 @@ namespace AIChatServer.Repositories.Implementations
                     command.Parameters.AddWithValue("@UserId", userId);
                     command.Parameters.AddWithValue("@ChatId", chatId);
 
-                    var result = command.ExecuteScalar();
-                    _logger.LogInformation("Added UserId={UserId} to ChatId={ChatId}", userId, chatId);
-                    return result?.ToString() ?? string.Empty;
+                    using (var reader = command.ExecuteReader())
+                    {
+                        if (reader.Read())
+                        {
+                            var userInChatData = new UserInChatData(
+                                reader.GetString("name"),
+                                reader.GetDateTime("join_time")
+                            );
+
+                            _logger.LogInformation(
+                                "Added UserId={UserId} to ChatId={ChatId} (JoinTime={JoinTime})",
+                                userId, chatId, userInChatData.JoinTime
+                            );
+
+                            return userInChatData;
+                        }
+                    }
                 }
+
+                throw new Exception($"User with Id={userId} not added to chat {chatId}");
             }
             catch (Exception ex)
             {
@@ -299,6 +316,7 @@ namespace AIChatServer.Repositories.Implementations
                 throw;
             }
         }
+
         public (List<Chat>, List<Chat>) GetNewChats(Guid userId, DateTime lastOnline)
         {
             var chats = (new List<Chat>(), new List<Chat>());
@@ -322,7 +340,7 @@ namespace AIChatServer.Repositories.Implementations
                                 Id = reader.GetGuid("id"),
                                 CreationTime = reader.GetDateTime("creation_time"),
                                 EndTime = reader.IsDBNull("end_time") ? null : reader.GetDateTime("end_time"),
-                                UsersNames = new Dictionary<Guid, string>() { { userId, reader.GetString("name") } }
+                                UsersWithData = new Dictionary<Guid, UserInChatData>() { { userId, new UserInChatData( reader.GetString("name"), reader.GetDateTime("join_time")) } }
                             };
 
                             if (chat.CreationTime > lastOnline)
@@ -372,6 +390,31 @@ namespace AIChatServer.Repositories.Implementations
             }
 
             throw new Exception($"Chat with ID {chatId} not found");
+        }
+
+        public bool RemoveUserFromChat(Guid userId, Guid chatId)
+        {
+            try
+            {
+                using (var connection = GetConnection())
+                using (var command = new NpgsqlCommand(ChatQueries.RemoveUserFromChat, connection))
+                {
+                    command.Parameters.AddWithValue("@UserId", userId);
+                    command.Parameters.AddWithValue("@ChatId", chatId);
+
+                    bool success = command.ExecuteNonQuery() > 0;
+                    if (success)
+                        _logger.LogInformation("User {UserId} removed successfully from Chat {ChatId}", userId, chatId);
+                    else
+                        _logger.LogWarning("Failed to remove user {UserId} from Chat {ChatId}", userId, chatId);
+                    return success;
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Failed to remove user {UserId} from Chat {ChatId}", userId, chatId);
+                throw;
+            }
         }
     }
 }

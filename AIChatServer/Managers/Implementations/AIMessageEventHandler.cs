@@ -5,6 +5,7 @@ using AIChatServer.Managers.Interfaces;
 using AIChatServer.Service.Interfaces;
 using AIChatServer.Utils.Interfaces;
 using AIChatServer.Utils.Interfaces.Mapper;
+using System.Management;
 
 namespace AIChatServer.Managers.Implementations
 {
@@ -44,7 +45,8 @@ namespace AIChatServer.Managers.Implementations
                 throw new ArgumentException(nameof(args));
 
             var savedMessage = _messageService.SendMessage(message);
-            var users = _chatManager.GetUsersInChat(savedMessage.Chat);
+            Chat chat = _chatManager.GetChat(savedMessage.Chat) ?? throw new ArgumentNullException(nameof(chat));
+            var users = chat.UsersWithData.Keys.ToList();
 
             await _userManager.SendCommandAsync(_commandMapper.MapToSendCommand(
                 users, new CommandResponse("SendMessage", _messageMapper.ToDTO(savedMessage)!)));

@@ -3,70 +3,31 @@ using AIChatServer.Entities.User;
 using AIChatServer.Managers.Interfaces;
 using AIChatServer.Service.Interfaces;
 using Microsoft.Extensions.Logging;
+using System;
 
 namespace AIChatServer.Managers.Implementations
 {
-    public class ChatManager : IChatManager, IChatCreator
+    public class ChatManager : IChatManager
     {
         private readonly IChatService _chatService;
         private readonly Dictionary<Guid, Chat> _chatList;
-        private readonly Dictionary<ChatType, IChatMatchStrategy> _strategies;
         private readonly ILogger<ChatManager> _logger;
         private readonly object _syncObj = new();
 
         public event Action<Chat> OnChatCreated;
         public event Action<Chat> OnChatEnded;
+        public event Action<User, Chat> OnUserAdded;
+        public event Action<Guid, Chat> OnUserRemoved;
 
         public ChatManager(
             IChatService chatService, 
             Dictionary<ChatType, IChatMatchStrategy> strategies,
             ILogger<ChatManager> logger)
         {
-            _chatService = chatService ?? throw new ArgumentNullException(nameof(chatService)); ;
-            _strategies = strategies ?? throw new ArgumentNullException(nameof(strategies));
+            _chatService = chatService ?? throw new ArgumentNullException(nameof(chatService));
             _logger = logger ?? throw new ArgumentNullException(nameof(logger));
             _chatList = chatService.GetChats();
             _logger.LogInformation("ChatManager initialized with {ChatCount} existing chats.", _chatList.Count);
-        }
-
-        public async Task SearchChatAsync(User user, ChatType type)
-        {
-            if (_strategies.TryGetValue(type, out var strategy))
-            {
-                _logger.LogInformation("User {UserId} started searching for a chat of type {ChatType}.", user.Id, type);
-                await strategy.MatchUserAsync(user, this);
-                _logger.LogInformation("User {UserId} finished search attempt for chat type {ChatType}.", user.Id, type);
-            }
-            else
-            {
-                _logger.LogWarning("No strategy found for chat type {ChatType} when user {UserId} tried to search.", type, user.Id);
-            }
-        }
-
-        public void StopSearchingChat(Guid userId)
-        {
-            foreach (var strategy in _strategies.Values)
-            {
-                if (strategy is IStopableChatMatchStrategy stopable)
-                {
-                    stopable.StopSearching(userId);
-                    _logger.LogInformation("User {UserId} stopped searching in strategy {StrategyType}.", userId, strategy.GetType().Name);
-                }
-            }
-        }
-
-        public bool IsSearchingChat(Guid userId)
-        {
-            foreach (var strategy in _strategies.Values)
-            {
-                if (strategy is IStopableChatMatchStrategy stopable && stopable.IsSearching(userId))
-                {
-                    _logger.LogDebug("User {UserId} is currently searching in strategy {StrategyType}.", userId, strategy.GetType().Name);
-                    return true;
-                }
-            }
-            _logger.LogDebug("User {UserId} is not searching in any strategy.", userId);
-            return false;
         }
 
         public void EndChat(Guid chatId)
@@ -87,41 +48,14 @@ namespace AIChatServer.Managers.Implementations
             }
         }
 
-        public List<Guid> GetUsersInChat(Guid chatId)
-        {
-            lock (_syncObj)
-            {
-                if (_chatList.TryGetValue(chatId, out var chat))
-                    return chat.UsersNames.Keys.ToList();
-                _logger.LogWarning("Requested users for non-existing chat {ChatId}.", chatId);
-                return new List<Guid>();
-            }
-        }
-
         public List<Guid> GetUserChats(Guid userId)
         {
             var chats = _chatList.Values
-                           .Where(c => c.UsersNames.ContainsKey(userId))
+                           .Where(c => c.UsersWithData.ContainsKey(userId))
                            .Select(c => c.Id)
                            .ToList();
             _logger.LogDebug("User {UserId} is in {ChatCount} chats.", userId, chats.Count);
             return chats;
-        }
-
-        public ChatType? GetChatType(Guid chatId)
-        {
-            ChatType? type = _chatList.TryGetValue(chatId, out var chat) ? chat.Type : null;
-            _logger.LogDebug("ChatType requested for chat {ChatId}: {ChatType}", chatId, type);
-            return type;
-        }
-
-        public string? GetChatName(Guid chatId, Guid userId)
-        {
-            var name = _chatList.TryGetValue(chatId, out var chat) && chat.UsersNames.TryGetValue(userId, out var userName)
-                ? userName
-                : null;
-            _logger.LogDebug("Chat name requested for chat {ChatId}, user {UserId}: {ChatName}", chatId, userId, name);
-            return name;
         }
 
         public void CreateChat(Guid[] users, ChatType type)
@@ -133,6 +67,53 @@ namespace AIChatServer.Managers.Implementations
             }
             _logger.LogInformation("Created new chat {ChatId} of type {ChatType} with users {UserIds}.", chat.Id, type, string.Join(",", users));
             OnChatCreated?.Invoke(chat);
+        }
+
+        public void AddUserToChat(User user, Guid chatId)
+        {
+            UserInChatData chatName = _chatService.AddUserToChat(user.Id, chatId);
+            lock (_syncObj)
+            {
+                Chat? chat = GetChat(chatId);
+                if (chat == null)
+                {
+                    _logger.LogError("User was not added to chat: Chat {chat} was not in chatList", chatId);
+                    return;
+                }
+                chat.UsersWithData.Add(user.Id, chatName);
+                _logger.LogInformation("Add user {userId} to chat {chatId} with name = {chatName}.", user.Id, chatId, chatName);
+                OnUserAdded?.Invoke(user, chat);
+            }
+        }
+
+        public Chat? GetChat(Guid chatId)
+        {
+            _chatList.TryGetValue(chatId, out Chat? chat);
+            return chat;
+        }
+
+        public void RemoveUserFromChat(Guid userId, Guid chatId)
+        {
+            Chat? chat = GetChat(chatId);
+            if (chat == null)
+            {
+                _logger.LogError("User was not removed from chat: Chat {chat} was not in chatList", chatId);
+                return;
+            }
+            _chatService.RemoveUserFromChat(userId, chatId);
+            if(!chat.UsersWithData.Remove(userId))
+            {
+                _logger.LogError("User was not removed from chat {chatId}: User {user} was not in chat.UserNames", chatId, userId);
+                return;
+            }
+            OnUserRemoved?.Invoke(userId, chat);
+        }
+
+        public Guid[] GetUsersInChat(Guid chatId)
+        {
+            Chat chat = GetChat(chatId) 
+                ?? throw new ArgumentNullException(nameof(chat));
+            return chat.UsersWithData.Keys.ToArray();
         }
     }
 }

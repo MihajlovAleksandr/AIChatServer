@@ -8,6 +8,7 @@ namespace AIChatServer.Entities.Chats
     {
         AI,
         Human,
-        Random
+        Random,
+        Group
     }
 }

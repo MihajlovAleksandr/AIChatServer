@@ -11,7 +11,7 @@
             WHERE user_id = @UserId AND chat_id = @ChatId";
 
         public const string GetNewChats = @"
-            SELECT c.id, c.creation_time, c.end_time, uc.name
+            SELECT c.id, c.creation_time, c.end_time, uc.name, uc.join_time
             FROM chats c
             JOIN users_chats uc ON c.id = uc.chat_id
             WHERE uc.user_id = @UserId 
@@ -37,7 +37,7 @@
             "SELECT * FROM chats WHERE end_time IS NULL AND deleted_status = false";
 
         public const string GetUserChats =
-            "SELECT user_id, name FROM users_chats WHERE chat_id = @ChatId";
+            "SELECT user_id, name, join_time FROM users_chats WHERE chat_id = @ChatId";
 
         public const string AddChatTokenUsage =
             "INSERT INTO chat_token_usage (chat_id, tokens_count) VALUES (@ChatId, 0)";
@@ -50,8 +50,13 @@
         public const string CreateChat =
             "INSERT INTO chats (type) VALUES (@Type) RETURNING *;";
 
-        public const string AddUserToChat =
-            "INSERT INTO users_chats (user_id, chat_id, name) VALUES (@UserId, @ChatId, '') RETURNING name;";
+        public const string AddUserToChat = @"
+            INSERT INTO users_chats (user_id, chat_id, name, join_time)
+            VALUES (@UserId, @ChatId, '', CURRENT_TIMESTAMP)
+            RETURNING name, join_time;";
+
+        public const string RemoveUserFromChat =
+        "DELETE FROM users_chats WHERE user_id = @UserId AND chat_id = @ChatId";
 
         public const string GetChatEndTime =
             "SELECT end_time FROM chats WHERE id = @Id";

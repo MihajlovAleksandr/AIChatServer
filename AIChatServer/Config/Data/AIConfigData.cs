@@ -2,6 +2,7 @@
 {
     public record AIConfigData(
         int ProbabilityAIChat,
-        Guid AIId
+        Guid AIId,
+        AIChatDelay AIChatDelay
     );
 }

@@ -7,6 +7,7 @@ namespace AIChatServer.Entities.DTO.Response
         [property: JsonProperty("oldMessages")] IReadOnlyCollection<MessageResponse> OldMessages,
         [property: JsonProperty("newChats")] IReadOnlyCollection<ChatResponse> NewChats,
         [property: JsonProperty("oldChats")] IReadOnlyCollection<ChatResponse> OldChats,
-        [property: JsonProperty("isChatSearching")] bool IsChatSearching
+        [property: JsonProperty("isChatSearching")] bool IsChatSearching,
+        [property: JsonProperty("userAddingToChat")] Guid? UserAddingToChat
     );
 }

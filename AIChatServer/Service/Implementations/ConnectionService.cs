@@ -121,5 +121,13 @@ namespace AIChatServer.Service.Implementations
             _connectionRepository.UpdateConnection(connectionId, userId);
             _logger.LogInformation("Updated Connection {ConnectionId} to belong to User {UserId}.", connectionId, userId);
         }
+
+        public DateTime? GetLastUserOnline(Guid userId)
+        {
+            ArgumentNullException.ThrowIfNull(userId);
+            var lastOnline = _connectionRepository.GetLastUserOnline(userId);
+            _logger.LogInformation("Get last user {userId} online: {userOnline}", userId, lastOnline);
+            return lastOnline;
+        }
     }
 }

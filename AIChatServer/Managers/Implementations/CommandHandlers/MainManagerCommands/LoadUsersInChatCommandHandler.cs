@@ -8,6 +8,7 @@ using AIChatServer.Entities.DTO.Request;
 using AIChatServer.Entities.DTO.Response;
 using AIChatServer.Entities.Chats;
 using AIChatServer.Utils.Interfaces.Mapper;
+using AIChatServer.Entities.User.ServerUsers.Interfaces;
 
 namespace AIChatServer.Managers.Implementations.CommandHandlers.MainManagerCommands
 {
@@ -29,24 +30,36 @@ namespace AIChatServer.Managers.Implementations.CommandHandlers.MainManagerComma
 
         public async Task HandleAsync(object sender, Command command)
         {
-            UsersInChatRequest usersInChatRequest = command.GetData<UsersInChatRequest>() ?? throw new ArgumentNullException("UsersInChatRequest");
-            await CommandSender.SendCommandAsync(command.Sender, GetLoadUsersInChatCommand(usersInChatRequest.ChatId), _serializer);
+            UsersInChatRequest usersInChatRequest = command.GetData<UsersInChatRequest>() 
+                ?? throw new ArgumentNullException("UsersInChatRequest");
+            IServerUser serverUser = sender as IServerUser
+                ?? throw new ArgumentNullException(nameof(serverUser));
+            await CommandSender.SendCommandAsync(command.Sender,
+                GetLoadUsersInChatCommand(usersInChatRequest.ChatId, serverUser.User.Id), _serializer);
         }
 
-        private CommandResponse GetLoadUsersInChatCommand(Guid chatId)
+        private CommandResponse GetLoadUsersInChatCommand(Guid chatId, Guid userId)
         {
             var data = _chatService.LoadUsers(chatId);
             int aiIndex = data.Item1.IndexOf(_aiManager.AIId);
-            ChatType? chatType = _chatManager.GetChatType(chatId);
+            Chat chat = _chatManager.GetChat(chatId) ?? throw new ArgumentNullException(nameof(chat));
 
             if (aiIndex != -1)
             {
                 data.Item3[aiIndex] = true;
+
             }
-            if (chatType == ChatType.Random)
+            int currentUserIndex = data.Item1.IndexOf(userId);
+            if (chat.Type == ChatType.Random)
             {
-                data.Item2[aiIndex] = new UserData() { Age = 0, Name = "Random", Gender =  Gender.None };
-                data.Item3[aiIndex] = true;
+                for (int i = 0; i < data.Item2.Count && i< data.Item3.Count; i++)
+                {
+                    if (i == currentUserIndex) continue;
+
+                    data.Item2[i] = new UserData() { Age = 0, Name = "Random", Gender = Gender.None };
+                    data.Item3[i] = true;
+                }
+
             }
             return new CommandResponse("LoadUsersInChat", new UsersInChatResponse(data.Item1, GetUserDataResponses(data.Item2), data.Item3));
         }

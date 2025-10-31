@@ -259,5 +259,33 @@ namespace AIChatServer.Repositories.Implementations
                 throw;
             }
         }
+
+        public DateTime? GetLastUserOnline(Guid userId)
+        {
+            try
+            {
+                using var connection = GetConnection();
+                using var command = new NpgsqlCommand(ConnectionQueries.GetLastUserOnline, connection);
+                command.Parameters.AddWithValue("@UserId", userId);
+
+                var result = command.ExecuteScalar();
+
+                if (result == DBNull.Value || result is null)
+                {
+                    _logger.LogInformation("User {UserId} is currently online (LastOnline = null)", userId);
+                    return null;
+                }
+
+                var lastOnline = (DateTime)result;
+                _logger.LogInformation("User {UserId} last online at {LastOnline}", userId, lastOnline);
+
+                return lastOnline;
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Failed to get last online time for user {UserId}", userId);
+                throw;
+            }
+        }
     }
 }

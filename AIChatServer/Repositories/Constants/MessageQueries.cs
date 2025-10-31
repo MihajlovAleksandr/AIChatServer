@@ -8,6 +8,7 @@
             JOIN users_chats uc ON m.chat_id = uc.chat_id
             WHERE uc.user_id = @UserId
             AND (m.last_update > @LastOnline)
+            AND (m.time > uc.join_time)
             ORDER BY m.chat_id;";
 
         public const string SendMessage = @"

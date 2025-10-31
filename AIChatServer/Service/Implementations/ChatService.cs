@@ -111,5 +111,21 @@ namespace AIChatServer.Service.Implementations
 
             return success;
         }
+
+        public UserInChatData AddUserToChat(Guid userId, Guid chatId)
+        {
+            ArgumentNullException.ThrowIfNull(userId);
+            ArgumentNullException.ThrowIfNull(chatId);
+
+            return _chatRepository.AddUserToChat(userId, chatId);
+        }
+
+        public bool RemoveUserFromChat(Guid userId, Guid chatId)
+        {
+            ArgumentNullException.ThrowIfNull(userId);
+            ArgumentNullException.ThrowIfNull(chatId);
+
+            return _chatRepository.RemoveUserFromChat(userId, chatId);
+        }
     }
 }

@@ -13,6 +13,10 @@ using AIChatServer.Managers.Implementations;
 using AIChatServer.Managers.Interfaces;
 using AIChatServer.Utils.Interfaces.Mapper;
 using AIChatServer.Utils.Interfaces;
+using AIChatServer.Entities.DTO.Response;
+using AIChatServer.Entities.Chats;
+using AIChatServer.Entities.DTO.Request;
+using AIChatServer.Entities.User;
 
 namespace AIChatServer
 {
@@ -27,13 +31,16 @@ namespace AIChatServer
             var configData = appConfigManager.GetConfigData();
 
             var jsonHelper = new JsonHelper();
+
             var random = new Random();
             var mapperFactory = new MapperFactory();
             var tokenManagerFactory = new TokenManagerFactory();
             var repositoryFactory = new RepositoryFactory(compositeLoggerFactory, connectionString);
+            var userPredicateFactory = new UserPredicateFactory();
             var serviceFactory = new ServiceFactory(compositeLoggerFactory);
             var httpService = new HttpService(new HttpClient());
             var managerFactory = new ManagerFactory(jsonHelper, compositeLoggerFactory, httpService);
+            var chatControllerFactory = new ChatControllerFactory(compositeLoggerFactory);
             var emailSender = new EmailSender(
                 configData.EmailConfigData.SmtpServer,
                 configData.EmailConfigData.SmtpPort,
@@ -54,8 +61,10 @@ namespace AIChatServer
             var mainManagerFactory = new MainManagerFactory(
                 mapperFactory,
                 tokenManagerFactory,
+                userPredicateFactory,
                 repositoryFactory,
                 serviceFactory,
+                chatControllerFactory,
                 managerFactory,
                 userFactoryFactory,
                 commandHandlerFactory,
@@ -95,10 +104,12 @@ namespace AIChatServer
             services.AddSingleton(typeof(IChatService), mainDeps.ChatService);
             services.AddSingleton(typeof(IMessageService), mainDeps.MessageService);
             services.AddSingleton(typeof(IUserService), mainDeps.UserService);
+            services.AddSingleton(typeof(IConnectionService), mainDeps.ConnectionService);
 
             services.AddSingleton(typeof(ISendCommandMapper), mainDeps.SendCommandMapper);
-            services.AddSingleton(typeof(IResponseMapper<AIChatServer.Entities.DTO.Response.ChatResponse, AIChatServer.Entities.Chats.ChatWithUserContext>), mainDeps.ChatResponseMapper);
-            services.AddSingleton(typeof(IMapper<AIChatServer.Entities.DTO.Request.MessageRequest, AIChatServer.Entities.Chats.Message, AIChatServer.Entities.DTO.Response.MessageResponse>), mainDeps.MessageMapper);
+            services.AddSingleton(typeof(IResponseMapper<ChatResponse, ChatWithUserContext>), mainDeps.ChatResponseMapper);
+            services.AddSingleton(typeof(IMapper<MessageRequest, Message, MessageResponse>), mainDeps.MessageMapper);
+            services.AddSingleton(typeof(IResponseMapper<UserDataResponse, UserData>), mainDeps.UserDaraMapper);
 
             services.AddSingleton(mainDeps.CommandHandlers);
             services.AddSingleton(mainDeps.Logger);
@@ -109,6 +120,7 @@ namespace AIChatServer
             services.AddSingleton(mainDeps.UserManager);
 
             services.AddSingleton<NotificationServiceFacade>();
+            services.AddSingleton<CommandServiceFacade>();
 
             services.AddSingleton<ConnectionEventHandler>();
             services.AddSingleton<CommandEventHandler>();

@@ -44,5 +44,14 @@
 
         public const string UpdateConnection =
             "UPDATE connections SET user_id = @UserId WHERE id = @Id";
+
+        public const string GetLastUserOnline = @"
+            SELECT 
+                CASE 
+                    WHEN COUNT(*) FILTER (WHERE last_connection IS NULL) > 0 THEN NULL
+                    ELSE MAX(last_connection)
+                END AS last_online
+            FROM connections
+            WHERE user_id = @UserId;";
     }
 }

@@ -6,10 +6,12 @@ using AIChatServer.Managers.Interfaces;
 
 namespace AIChatServer.Managers.Implementations.CommandHandlers.MainManagerCommands
 {
-    public class SearchChatCommandHandler(IChatManager chatManager) : ICommandHandler
+    public class SearchChatCommandHandler(IChatMatchStrategiesHandler chatMatcher, IChatLifecycleManager chatCreator) : ICommandHandler
     {
-        private readonly IChatManager _chatManager = chatManager ??
-            throw new ArgumentNullException(nameof(chatManager));
+        private readonly IChatMatchStrategiesHandler _chatMatcher = chatMatcher
+            ?? throw new ArgumentNullException(nameof(chatMatcher));
+        private readonly IChatLifecycleManager _chatCreator = chatCreator
+            ?? throw new ArgumentNullException(nameof(chatCreator));
 
         public string Operation => "SearchChat";
 
@@ -19,7 +21,8 @@ namespace AIChatServer.Managers.Implementations.CommandHandlers.MainManagerComma
             SearchChatRequest searchChatRequest = command.GetData<SearchChatRequest>() ?? throw new ArgumentNullException("SearchChatRequest");
             CommandResponse searchChatCommand = new CommandResponse("SearchChat", new SearchChatResponse(true));
             await knownUser.SendCommandAsync(searchChatCommand);
-            await _chatManager.SearchChatAsync(knownUser.User, searchChatRequest.ChatType);
+            await _chatMatcher.SearchChatAsync(knownUser.User, searchChatRequest.ChatType, 
+                _chatCreator, searchChatRequest.ChatMatchPredicate );
         }
     }
 }

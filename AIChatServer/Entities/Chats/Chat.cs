@@ -6,17 +6,17 @@
         public DateTime CreationTime { get; set; }
         public DateTime? EndTime { get; set; }
         public ChatType Type { get; set; }
-        public Dictionary<Guid, string> UsersNames { get; set; }
+        public Dictionary<Guid, UserInChatData> UsersWithData { get; set; }
 
         public Chat()
         {
-            UsersNames = new Dictionary<Guid, string>();
+            UsersWithData = new Dictionary<Guid, UserInChatData>();
             CreationTime = DateTime.Now;
         }
 
         public bool ContainsAI(Guid aiId)
         {
-            return UsersNames.TryGetValue(aiId, out string? _);
+            return UsersWithData.TryGetValue(aiId, out UserInChatData? _);
         }
 
         public override bool Equals(object? obj)

@@ -61,6 +61,11 @@ namespace AIChatServer.Repositories.Implementations
             {
                 var messagesByChat = new Dictionary<Guid, (List<AIMessage> MainMessages, List<AIMessage> CompressedMessages)>();
 
+                foreach(Guid chatId in chatIds)
+                {
+                    messagesByChat.Add(chatId, (new List<AIMessage>(), new List<AIMessage>()));
+                }
+
                 using (var connection = GetConnection())
                 using (var command = new NpgsqlCommand(AIMessageQueries.GetAIMessagesByChat, connection))
                 {

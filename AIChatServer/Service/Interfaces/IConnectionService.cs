@@ -13,5 +13,6 @@ namespace AIChatServer.Service.Interfaces
         void UpdateConnection(Guid connectionId, Guid userId);
         int[] GetConnectionCount(Guid userId);
         void DeleteUnknownConnection(Guid id);
+        DateTime? GetLastUserOnline(Guid userId);
     }
 }

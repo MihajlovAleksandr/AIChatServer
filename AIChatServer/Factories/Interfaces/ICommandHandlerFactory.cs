@@ -7,6 +7,6 @@ namespace AIChatServer.Factories.Interfaces
     public interface ICommandHandlerFactory
     {
         ConcurrentDictionary<string, ICommandHandler> CreateCommandHandlers(ServiceContainer services, TokenManagerContainer tokenManagers,
-                   ManagerContainer managers, MapperContainer mappers);
+                   ManagerContainer managers, MapperContainer mappers, ChatControllerContainer chatControllerContainer);
     }
 }

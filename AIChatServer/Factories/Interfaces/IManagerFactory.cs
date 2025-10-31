@@ -8,7 +8,9 @@ namespace AIChatServer.Factories.Interfaces
 {
     public interface IManagerFactory
     {
-        Task<ManagerContainer> CreateManagers(ConfigData configData, MapperContainer mappers, Dictionary<ChatType, IChatMatchStrategy> strategies,
-                    TokenManagerContainer tokenManagers, ServiceContainer serviceContainer, UserFactoryContainer userFactoryContainer, IConnectionFactory connectionFactory);
+        Task<ManagerContainer> CreateManagersAsync(ConfigData configData, MapperContainer mappers,
+            Dictionary<ChatType, IChatMatchStrategy> strategies, TokenManagerContainer tokenManagers,
+            ServiceContainer serviceContainer, UserFactoryContainer userFactoryContainer,
+            IConnectionFactory connectionFactory, ChatControllerContainer chatControllerContainer);
     }
 }

@@ -19,8 +19,11 @@ namespace AIChatServer.Factories.Implementations
         private readonly ICompositeLoggerFactory _loggerFactory = loggerFactory ?? throw new ArgumentNullException(nameof(loggerFactory));
         private readonly IHttpService _httpService = httpService ?? throw new ArgumentNullException(nameof(httpService));
 
-        public async Task<ManagerContainer> CreateManagers(ConfigData configData, MapperContainer mappers, Dictionary<ChatType, IChatMatchStrategy> strategies,
-            TokenManagerContainer tokenManagers, ServiceContainer serviceContainer, UserFactoryContainer userFactoryContainer, IConnectionFactory connectionFactory)
+        public async Task<ManagerContainer> CreateManagersAsync(ConfigData configData, MapperContainer mappers, 
+            Dictionary<ChatType, IChatMatchStrategy> strategies, TokenManagerContainer tokenManagers,
+            ServiceContainer serviceContainer, UserFactoryContainer userFactoryContainer, 
+            IConnectionFactory connectionFactory, ChatControllerContainer chatControllerContainer 
+            )
         {
             var deepSeekController = new DeepSeekController(
                 configData.DeepSeekConfigData.MaxTokenCount,
@@ -61,7 +64,9 @@ namespace AIChatServer.Factories.Implementations
             var messageCollectionMapper = new CollectionResponseMapper<MessageResponse, Message>(mappers.MessageMapper);
             var chatCollectionMapper = new CollectionResponseMapper<ChatResponse, ChatWithUserContext>(mappers.ChatResponseMapper);
 
-            var syncService = new SyncManager(serviceContainer.ChatService, serviceContainer.MessageService, chatManager.IsSearchingChat, messageCollectionMapper,
+            var syncService = new SyncManager(serviceContainer.ChatService, serviceContainer.MessageService,
+                chatControllerContainer.ChatMatcher.IsChatSearching,
+                chatControllerContainer.ChatUserAdder.IsUserAdding, messageCollectionMapper,
             chatCollectionMapper, _loggerFactory.Create<SyncManager>());
 
             var aiMessages = await serviceContainer.AIMessageService.GetAIMessagesByChatAsync(chatManager.GetUserChats(configData.AIConfigData.AIId));
